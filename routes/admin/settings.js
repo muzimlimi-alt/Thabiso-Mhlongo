@@ -273,6 +273,8 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
     const envMap = {
         payfast_merchant_id: 'PAYFAST_MERCHANT_ID', payfast_merchant_key: 'PAYFAST_MERCHANT_KEY',
         payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
+        ozow_site_code: 'OZOW_SITE_CODE', ozow_api_key: 'OZOW_API_KEY',
+        ozow_private_key: 'OZOW_PRIVATE_KEY', ozow_test_mode: 'OZOW_TEST_MODE',
         email_banner: 'EMAIL_BANNER'
     };
     const keys = Object.keys(settings);
@@ -284,10 +286,10 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
 
     // Live payment credentials — same administrator-only bar as SMTP below. Any admin role could
     // otherwise repoint the merchant id/key/passphrase/URL that every customer payment signs against.
-    // Guards EVERY payfast_* key (not just the four in envMap), so the hide-online-pay toggle and
-    // any future payfast_* setting are administrator-only too.
-    if (keys.some(k => k.startsWith('payfast_')) && (req.session.role || 'assistant') !== 'administrator') {
-        return res.status(403).json({ success: false, message: 'Forbidden: only administrators can change the PayFast payment settings.' });
+    // Guards EVERY payfast_* and ozow_* key, so the hide-online-pay toggles and any future
+    // payment settings are administrator-only too.
+    if (keys.some(k => k.startsWith('payfast_') || k.startsWith('ozow_')) && (req.session.role || 'assistant') !== 'administrator') {
+        return res.status(403).json({ success: false, message: 'Forbidden: only administrators can change payment gateway settings.' });
     }
 
     // ── SMTP: authorise, validate, and (if the connection details changed) prove they work BEFORE anything is written ──
@@ -362,6 +364,11 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
         if (pfKeys.length) {
             logAudit({ tableName: 'settings', recordId: 0, action: 'update', req, newValues: { payfast_fields_changed: pfKeys } }).catch(e => console.error('logAudit failed:', e.message));
             notify.emit('finance.settings_changed', { area: 'PayFast credentials', ref: pfKeys.slice().sort().join(','), fields: pfKeys.map(k => k.replace(/^payfast_/, '').replace(/_/g, ' ')).join(', ') }, { req });
+        }
+        const ozKeys = otherKeys.filter(k => k in envMap && k.startsWith('ozow_'));
+        if (ozKeys.length) {
+            logAudit({ tableName: 'settings', recordId: 0, action: 'update', req, newValues: { ozow_fields_changed: ozKeys } }).catch(e => console.error('logAudit failed:', e.message));
+            notify.emit('finance.settings_changed', { area: 'Ozow credentials', ref: ozKeys.slice().sort().join(','), fields: ozKeys.map(k => k.replace(/^ozow_/, '').replace(/_/g, ' ')).join(', ') }, { req });
         }
     } catch (err) {
         console.error('save settings failed:', err);

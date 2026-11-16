@@ -650,7 +650,7 @@
                         </td>
                         <td style="font-size:12px;" data-label="Date">${r.event_date ? new Date(r.event_date).toLocaleDateString('en-ZA') : '-'}</td>
                         <td style="font-weight:600;" data-label="Quoted">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);font-weight:400;font-style:italic;" title="No quotation has been issued yet: the booking only carries the service-catalogue estimate, which is a published rate, not a quoted amount.">Not quoted</span>' : R_FMT(r.quoted_amount)}</td>
-                        <td style="color:#2196F3;" data-label="PayFast">${R_FMT(r.payfast_total)}</td>
+                        <td style="color:#2196F3;" data-label="Online">${R_FMT(r.payfast_total)}</td>
                         <td style="color:#9C27B0;" data-label="Manual">${R_FMT(r.manual_total)}</td>
                         <td style="color:${effectiveColor};font-weight:700;" data-label="Effective">${R_FMT(r.effective_received)}</td>
                         <td style="color:var(--atl-orange);" data-label="Outstanding">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);">-</span>' : R_FMT(r.outstanding)}</td>
@@ -728,7 +728,7 @@
                     </thead>
                     <tbody>
                         ${txs.map(t => {
-                            const srcColor = t.source === 'payfast' ? '#2196F3' : '#9C27B0';
+                            const srcColor = t.source === 'payfast' ? '#2196F3' : t.source === 'ozow' ? '#00B0FF' : '#9C27B0';
                             const isDupe = t.is_duplicate ? 1 : 0;
                             return `
                                 <tr style="border-top:1px solid var(--atl-line);${isDupe ? 'opacity:0.5;' : ''}">

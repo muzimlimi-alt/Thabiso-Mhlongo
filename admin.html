@@ -3146,7 +3146,7 @@
                                                     <th>Client / Event</th>
                                                     <th>Date</th>
                                                     <th>Quoted</th>
-                                                    <th>PayFast</th>
+                                                    <th>Online</th>
                                                     <th>Manual</th>
                                                     <th>Effective</th>
                                                     <th>Outstanding</th>
@@ -4009,7 +4009,7 @@
                         <div>
                             <p class="atl-section-eyebrow">Revenue</p>
                             <h2 class="atl-section-heading"><i class="fa-solid fa-credit-card"></i> Payment Setup</h2>
-                            <p class="atl-section-sub">How clients pay: the PayFast card gateway, and bank transfer with the banking details printed on invoices.</p>
+                            <p class="atl-section-sub">How clients pay: PayFast card gateway, Ozow instant EFT, and bank transfer with the banking details printed on invoices.</p>
                         </div>
                     </div>
                     <div class="atl-section-rule"></div>
@@ -4018,6 +4018,7 @@
                         <div class="col-md-12">
                             <div class="atl-tab-bar" role="tablist">
                                 <button class="atl-tab-btn active" data-um-tab="payPanelPayfast" role="tab" aria-selected="true"><i class="fa-solid fa-credit-card"></i> PayFast</button>
+                                <button class="atl-tab-btn" data-um-tab="payPanelOzow" role="tab" aria-selected="false"><i class="fa-solid fa-building-columns"></i> Ozow</button>
                                 <button class="atl-tab-btn" data-um-tab="payPanelBank" role="tab" aria-selected="false"><i class="fa-solid fa-building-columns"></i> EFT Payments</button>
                                 <button class="atl-tab-btn" data-um-tab="payPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                             </div>
@@ -4050,22 +4051,72 @@
                                             <div class="um-field-group"><label class="um-label" for="stPayfastUrl">Gateway URL</label><div class="um-input-wrap"><i class="fa-solid fa-link um-input-icon"></i><input type="text" class="um-input" id="stPayfastUrl" placeholder="https://sandbox.payfast.co.za/eng/process"></div></div>
                                         </div>
                                     </div>
-                                    <!-- Hide-online-pay toggle: while on, the public Track drawer hides the "Pay online" card
-                                         entirely (clients see only Bank Transfer/EFT) and the /pay endpoint refuses PayFast
+                                    <!-- Hide PayFast toggle: while on, the public Track drawer hides the "Pay with PayFast" card
+                                         entirely (clients see only Ozow and/or Bank Transfer) and the /pay endpoint refuses PayFast
                                          redirects. Use this while your PayFast account is pending verification - a client who
                                          tries to pay card right now just gets a PayFast 500. -->
                                     <div class="um-divider" style="margin-top:14px;"></div>
                                     <label class="eft-check" for="stPayfastDisabled" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                         <input type="checkbox" id="stPayfastDisabled">
                                         <span>
-                                            <strong>Hide &ldquo;Pay online&rdquo; on the public site</strong>
-                                            <small style="display:block; color:var(--atl-muted); font-weight:400; margin-top:2px;">Turn on while your PayFast account is <em>pending verification</em>. Clients will see only Bank Transfer (EFT) on the Track drawer. Turn off once PayFast has verified your account so card payments work again.</small>
+                                            <strong>Hide &ldquo;Pay with PayFast&rdquo; on the public site</strong>
+                                            <small style="display:block; color:var(--atl-muted); font-weight:400; margin-top:2px;">Turn on while your PayFast account is <em>pending verification</em>. Clients will still see Ozow and/or Bank Transfer (EFT) on the Track drawer. Turn off once PayFast has verified your account so card payments work again.</small>
                                         </span>
                                     </label>
                                     <div class="um-settings-save" style="margin-top:18px;">
                                         <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed. A blank Passphrase keeps the saved one.</span>
                                         <button id="btnSavePayfast" class="atl-btn atl-btn--primary" onclick="savePayfastSettings(this)">
                                             <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save PayFast settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="um-panel" id="payPanelOzow">
+                                <!-- Card: Ozow (Instant EFT) -->
+                                <div class="atl-card um-settings-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-building-columns"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Ozow</h4>
+                                            <p class="um-section-desc">Instant EFT gateway &mdash; clients pay directly from their bank account via Ozow. Get your credentials from the <a href="https://dash.ozow.com" target="_blank" rel="noopener">Ozow Dashboard</a>.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stOzowSiteCode">Site Code</label><div class="um-input-wrap"><i class="fa-solid fa-id-badge um-input-icon"></i><input type="text" class="um-input" id="stOzowSiteCode" placeholder="Your Ozow site code"></div></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stOzowApiKey">API Key</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><input type="text" class="um-input" id="stOzowApiKey" placeholder="Your Ozow API key"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stOzowPrivateKey">Private Key</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stOzowPrivateKey" placeholder="(leave blank to keep current)"></div></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="eft-check" for="stOzowTestMode" style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-top:28px;">
+                                                <input type="checkbox" id="stOzowTestMode">
+                                                <span>
+                                                    <strong>Test mode</strong>
+                                                    <small style="display:block; color:var(--atl-muted); font-weight:400; margin-top:2px;">Uses the Ozow staging environment. Turn off for live payments.</small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider" style="margin-top:14px;"></div>
+                                    <label class="eft-check" for="stOzowDisabled" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                        <input type="checkbox" id="stOzowDisabled">
+                                        <span>
+                                            <strong>Hide &ldquo;Pay with Ozow&rdquo; on the public site</strong>
+                                            <small style="display:block; color:var(--atl-muted); font-weight:400; margin-top:2px;">Turn on to hide the Ozow Instant EFT option from the Track drawer. Clients will still see PayFast and/or Bank Transfer (EFT).</small>
+                                        </span>
+                                    </label>
+                                    <div class="um-settings-save" style="margin-top:18px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed.</span>
+                                        <button id="btnSaveOzow" class="atl-btn atl-btn--primary" onclick="saveOzowSettings(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Ozow settings
                                         </button>
                                     </div>
                                 </div>
@@ -4153,6 +4204,17 @@
                                         <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>Always test in sandbox first &mdash; a mismatched key or passphrase makes payments fail PayFast's signature check.</p>
                                     </div>
 
+                                    <!-- Ozow -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-building-columns" style="color:var(--atl-amber);"></i> Ozow</p>
+                                        <p class="um-role-info__desc">Connects the public booking flow to <strong style="color:var(--atl-ink);">Ozow</strong> so clients can pay instantly from their bank account (Instant EFT). It appears as a separate payment option alongside PayFast and manual bank transfer.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Site Code</strong> &amp; <strong style="color:var(--atl-ink);">API Key</strong> &mdash; from your Ozow merchant dashboard.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Private Key</strong> &mdash; signs each transaction. Never shown back once saved.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test mode</strong> &mdash; uses <code>stagingapi.ozow.com</code>. Turn off for live payments.</li>
+                                        </ul>
+                                    </div>
+
                                     <!-- Bank transfer -->
                                     <div class="um-role-info" style="margin-bottom:16px;">
                                         <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-building-columns" style="color:var(--atl-amber);"></i> Bank Transfer &amp; Banking Details</p>
@@ -4168,6 +4230,7 @@
                                     <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
                                     <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                         <li><strong style="color:var(--atl-ink);">Connect PayFast</strong> &mdash; paste your Merchant ID, Merchant Key and (optionally) passphrase, set the sandbox URL to test, then switch to the live URL and press <strong style="color:var(--atl-ink);">Save PayFast settings</strong>.</li>
+                                        <li><strong style="color:var(--atl-ink);">Connect Ozow</strong> &mdash; paste your Site Code, API Key and Private Key on the Ozow tab, enable Test mode to try it, then disable Test mode and press <strong style="color:var(--atl-ink);">Save Ozow settings</strong>.</li>
                                         <li><strong style="color:var(--atl-ink);">Accept bank transfers</strong> &mdash; on the Bank Transfer tab enter the banking details and switch bank transfer on.</li>
                                         <li><strong style="color:var(--atl-ink);">Change bank account</strong> &mdash; save the new details (a new version); invoices already issued are not changed.</li>
                                     </ol>
@@ -6038,7 +6101,7 @@
                                 <div class="tkt-sales__links">
                                     <a id="tktDoorLink" class="atl-btn atl-btn--ghost" href="/checkin" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> Door check-in</a>
                                     <a id="tktCsvLink" class="atl-btn atl-btn--ghost tkt-manage" href="#"><i class="fa-solid fa-file-csv"></i> Attendees CSV</a>
-                                    <a id="tktOrdersCsvLink" class="atl-btn atl-btn--ghost tkt-manage" href="#" title="Every order with its PayFast payment id - to tick off against the PayFast dashboard"><i class="fa-solid fa-file-invoice-dollar"></i> Orders CSV</a>
+                                    <a id="tktOrdersCsvLink" class="atl-btn atl-btn--ghost tkt-manage" href="#" title="Every order with its payment gateway id - to tick off against the PayFast / Ozow dashboard"><i class="fa-solid fa-file-invoice-dollar"></i> Orders CSV</a>
                                     <button type="button" id="tktSalesRefresh" class="atl-btn atl-btn--ghost" aria-label="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
                                 </div>
                             </div>
@@ -10106,7 +10169,7 @@
     </div>
 
     <!-- Ticket order drawer (Events -> Ticket Sales; js/admin/ticketing.js): one order's tickets, check-ins, PayFast notifications,
-         Resend tickets and Mark as refunded (the refund itself is done in the PayFast dashboard). -->
+         Resend tickets and Mark as refunded (the refund itself is done in the PayFast / Ozow dashboard). -->
     <div id="tktOrderDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="tktOrderDrawer" class="atl-drawer atl-drawer--dk-lite atl-drawer--520" role="dialog" aria-labelledby="tktOrderDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
@@ -11843,7 +11906,7 @@
         </div>
         <div class="atl-drawer__body">
             <input type="hidden" id="rpBookingId">
-            <div class="dk-notice dk-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div>Recording a payment for <strong id="rpBookingLabel"></strong>. Use this only when PayFast's webhook did not update the booking automatically.</div></div>
+            <div class="dk-notice dk-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div>Recording a payment for <strong id="rpBookingLabel"></strong>. Use this only when the payment gateway's webhook (PayFast / Ozow) did not update the booking automatically.</div></div>
 
             <section class="dk-panel" aria-labelledby="rpPanelPayment">
                 <div class="dk-panel__head"><i class="fa-solid fa-coins dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="rpPanelPayment">Payment</span></div>
@@ -12383,7 +12446,7 @@
 				<ul style="color:var(--atl-ink-dim);line-height:1.9;padding-left:20px;">
 					<li><strong>Contact &amp; booking forms:</strong> Name, email, phone, event details, and notes.</li>
 					<li><strong>Newsletter subscriptions:</strong> Your email address.</li>
-					<li><strong>Ticket purchases:</strong> When you buy tickets on this website we collect your name, email address and phone number (and any names you add to individual tickets) to issue your tickets, email them to you, admit you at the event and contact you about it. Payments are processed by PayFast; we do not see or store your card details. We keep order and payment records for as long as the law requires for financial records.</li>
+					<li><strong>Ticket purchases:</strong> When you buy tickets on this website we collect your name, email address and phone number (and any names you add to individual tickets) to issue your tickets, email them to you, admit you at the event and contact you about it. Payments are processed by PayFast or Ozow; we do not see or store your card or bank details. We keep order and payment records for as long as the law requires for financial records.</li>
 					<li><strong>Technical/usage data:</strong> IP address, browser type, and pages visited via server logs.</li>
 				</ul>
 				<p>We do <strong>not</strong> collect payment card details &mdash; payments are processed securely by PayFast.</p>

@@ -99,6 +99,8 @@ getAllSettings((err, rows) => {
         const envMap = {
             payfast_merchant_id: 'PAYFAST_MERCHANT_ID', payfast_merchant_key: 'PAYFAST_MERCHANT_KEY',
             payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
+            ozow_site_code: 'OZOW_SITE_CODE', ozow_api_key: 'OZOW_API_KEY',
+            ozow_private_key: 'OZOW_PRIVATE_KEY', ozow_test_mode: 'OZOW_TEST_MODE',
             email_banner: 'EMAIL_BANNER'
         };
         rows.forEach(r => {
@@ -211,6 +213,7 @@ app.use(helmet({
             connectSrc: [
                 "'self'",
                 "https://*.payfast.co.za",
+                "https://api.ozow.com", "https://stagingapi.ozow.com", "https://pay.ozow.com",
                 "https://maps.googleapis.com", "https://maps.gstatic.com", "https://places.googleapis.com",
                 "https://www.googleapis.com",
                 "https://api.vimeo.com",
@@ -221,6 +224,7 @@ app.use(helmet({
                 "'self'",
                 "https://challenges.cloudflare.com",   // Turnstile's "are you human?" check (lib/turnstile.js), only when its keys are set
                 "https://www.payfast.co.za", "https://sandbox.payfast.co.za",
+                "https://pay.ozow.com",
                 "https://www.google.com",
                 "https://www.youtube.com",
                 "https://player.vimeo.com",

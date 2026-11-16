@@ -50,12 +50,12 @@
         if (!data) { el.innerHTML = ''; return; }
         var s = window._finLastStats || {};
         var t = data.totals, b = data.bookings;
-        var main = (b.payfast || 0) + (b.eft || 0), other = (b.cash || 0) + (b.other || 0), tickets = t.net_revenue;
+        var main = (b.payfast || 0) + (b.ozow || 0) + (b.eft || 0), other = (b.cash || 0) + (b.other || 0), tickets = t.net_revenue;
         var total = main + other + tickets;
         var expenses = Number(s.monthly_expenses) || 0, fees = t.fees || 0;
         var profit = total - expenses - fees;
         var parts = [
-            { key: 'bookings', label: 'Client bookings', icon: 'fa-handshake', color: 'var(--atl-sage)', value: main, sub: 'PayFast ' + zar(b.payfast) + ' &middot; Bank transfer (EFT) ' + zar(b.eft) },
+            { key: 'bookings', label: 'Client bookings', icon: 'fa-handshake', color: 'var(--atl-sage)', value: main, sub: 'PayFast ' + zar(b.payfast) + ' &middot; Ozow ' + zar(b.ozow || 0) + ' &middot; Bank transfer (EFT) ' + zar(b.eft) },
             { key: 'tickets', label: 'Event tickets', icon: 'fa-ticket', color: 'var(--atl-amber)', value: tickets, sub: 'Gross ' + zar(t.gross) + ' &minus; refunds ' + zar(t.refunded + t.refund_owed), link: true },
             { key: 'other', label: 'Other recorded payments', icon: 'fa-coins', color: 'var(--atl-blue)', value: other, sub: 'Cash ' + zar(b.cash) + ' &middot; Other ' + zar(b.other) }
         ];

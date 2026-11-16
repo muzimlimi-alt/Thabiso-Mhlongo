@@ -104,6 +104,37 @@ router.post('/api/public/ticket-orders/:ref/checkout', ticketReserveRateLimiter,
     } catch (e) { fail(res, e, 'checkout'); }
 });
 
+router.post('/api/public/ticket-orders/:ref/checkout-ozow', ticketReserveRateLimiter, async (req, res) => {
+    try {
+        noStore(res);
+        const existing = await freshOrder(req.params.ref);
+        if (!existing) return res.status(404).json({ success: false, message: 'We could not find that order.' });
+        const items = await ticketing.orderItems(existing.id);
+        const count = items.reduce((n, i) => n + i.quantity, 0);
+        const { clean, errors } = core.validateBuyer(req.body, count);
+        if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
+        const order = await ticketing.startCheckout(req.params.ref, clean, CURRENT_POLICY_VERSION, core.TICKET_TERMS.version);
+        const ev = await ticketing.getEvent(order.event_id);
+        const { buildOzowPaymentRequest, ozowBaseUrl } = require('../../lib/ozow');
+        const ozowReq = payments.buildOzowTicketCheckout(order, { event_title: decodeStoredText(ev.event_title || '') }, req);
+        const apiUrl = ozowBaseUrl() + '/postpaymentrequest';
+        const { ozowCreds } = require('../../lib/ozow');
+        const creds = ozowCreds();
+        const resp = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'ApiKey': creds.apiKey },
+            body: JSON.stringify(ozowReq.requestBody)
+        });
+        const result = await resp.json();
+        if (result.url && !result.errorMessage) {
+            console.log(`[Ticketing] Ozow checkout started: order #${order.id}, ${order.m_payment_id}, R${core.centsToAmountString(order.total_cents)}`);
+            res.json({ success: true, redirectUrl: result.url, paymentRequestId: result.paymentRequestId, reserved_until: order.reserved_until, server_now: new Date().toISOString() });
+        } else {
+            res.status(502).json({ success: false, message: result.errorMessage || 'Ozow rejected the request' });
+        }
+    } catch (e) { fail(res, e, 'ozow checkout'); }
+});
+
 router.get('/api/public/ticket-orders/:ref', ticketLookupRateLimiter, async (req, res) => {
     try {
         noStore(res);

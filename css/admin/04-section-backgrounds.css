@@ -311,6 +311,11 @@
     color: var(--atl-muted, #949494);
     border: 1px solid rgba(148,148,148,0.3);
 }
+.atl-tag-badge--ozow {
+    background: rgba(0,176,255,0.12);
+    color: #00B0FF;
+    border: 1px solid rgba(0,176,255,0.3);
+}
 @keyframes atl-pulse-overdue {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.65; }

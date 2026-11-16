@@ -301,8 +301,8 @@ function fillPayfast(s) {
         $('#stPayfastPass').data('has-existing', false);
     }
     if (s.payfast_url) $('#stPayfastUrl').val(s.payfast_url);
-    // Hide-online-pay toggle — stored as '1' or '0' (treated as false by default so a fresh install
-    // shows "Pay online" on the public site, matching behaviour before this toggle existed).
+    // Hide PayFast toggle — stored as '1' or '0' (treated as false by default so a fresh install
+    // shows "Pay with PayFast" on the public site, matching behaviour before this toggle existed).
     $('#stPayfastDisabled').prop('checked', s.payfast_online_disabled === '1' || s.payfast_online_disabled === 'true');
 }
 
@@ -335,7 +335,7 @@ window.loadPaymentSetup = async function() {
     var _pl = qs('#payLoading'); if (_pl) _pl.style.display = 'block';
     try {
         const r = await fetchSettings();
-        if (r && r.settings) fillPayfast(r.settings);
+        if (r && r.settings) { fillPayfast(r.settings); fillOzow(r.settings); }
     } catch(e) {
         if (window.notificationService) window.notificationService.showError('Could not load payment settings. Please refresh.');
     } finally {
@@ -424,6 +424,43 @@ window.savePayfastSettings = async function(btn) {
     try {
         await apiCall('/api/admin/settings', 'PUT', { settings });
         window.notificationService.showSuccess('PayFast settings saved.');
+    } catch(e) {
+        // apiCall has already shown the server's reason
+    } finally {
+        $btn.prop('disabled', false).html(origHtml);
+    }
+};
+
+// ── Ozow Instant EFT ─────────────────────────────────────────────────────────
+function fillOzow(s) {
+    if (s.ozow_site_code) $('#stOzowSiteCode').val(s.ozow_site_code);
+    if (s.ozow_api_key) $('#stOzowApiKey').val(s.ozow_api_key);
+    if (s.ozow_private_key) {
+        $('#stOzowPrivateKey').val('').attr('placeholder', '••••••••  (set, leave blank to keep current)');
+        $('#stOzowPrivateKey').data('has-existing', true);
+    } else {
+        $('#stOzowPrivateKey').attr('placeholder', '(leave blank if none)');
+        $('#stOzowPrivateKey').data('has-existing', false);
+    }
+    $('#stOzowTestMode').prop('checked', s.ozow_test_mode === '1' || s.ozow_test_mode === 'true');
+    $('#stOzowDisabled').prop('checked', s.ozow_online_disabled === '1' || s.ozow_online_disabled === 'true');
+}
+
+window.saveOzowSettings = async function(btn) {
+    var $btn = btn ? $(btn) : $('#btnSaveOzow');
+    var origHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
+    var settings = {
+        ozow_site_code: $('#stOzowSiteCode').val(),
+        ozow_api_key: $('#stOzowApiKey').val(),
+        ozow_private_key: $('#stOzowPrivateKey').val()
+    };
+    Object.keys(settings).forEach(function(k) { if (!settings[k]) delete settings[k]; });
+    settings.ozow_test_mode = $('#stOzowTestMode').is(':checked') ? '1' : '0';
+    settings.ozow_online_disabled = $('#stOzowDisabled').is(':checked') ? '1' : '0';
+    try {
+        await apiCall('/api/admin/settings', 'PUT', { settings: settings });
+        window.notificationService.showSuccess('Ozow settings saved.');
     } catch(e) {
         // apiCall has already shown the server's reason
     } finally {

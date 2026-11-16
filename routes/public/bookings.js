@@ -31,6 +31,7 @@ const bookingNotifications = require('../../lib/booking-notifications');
 const notify = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = bookingNotifications;
 const { buildPayfastCheckout, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
+const { buildOzowPaymentRequest, ozowBaseUrl } = require('../../lib/ozow');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
@@ -399,9 +400,12 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                         // only Bank Transfer (EFT) in the Track drawer. Server-side truth: /api/public/bookings/:id/pay
                                         // also rejects with 503 while this is on, so hiding the UI is defence-in-depth, not the only gate.
                                         let payfastDisabled = false;
+                                        let ozowDisabled = false;
                                         try {
                                             const pfd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'payfast_online_disabled'");
                                             payfastDisabled = !!(pfd && (pfd.setting_value === '1' || pfd.setting_value === 'true'));
+                                            const ozd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'ozow_online_disabled'");
+                                            ozowDisabled = !!(ozd && (ozd.setting_value === '1' || ozd.setting_value === 'true'));
                                         } catch (pfErr) { /* a failure here must never stop tracking */ }
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
@@ -451,7 +455,8 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             cancellation: cancRow || null,
                                             contract: contractRow || null,
                                             eft: eftPanel,
-                                            payfast_disabled: payfastDisabled
+                                            payfast_disabled: payfastDisabled,
+                                            ozow_disabled: ozowDisabled
                                         });
                                     });
                                 });
@@ -795,8 +800,8 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
         return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
     }
 
-    // Hide-online-pay toggle (admin System Settings > PayFast). While on, the Track drawer hides the
-    // "Pay online" card too — this is the server-side truth, so a stale page or a direct POST can't
+    // Hide PayFast toggle (admin System Settings > PayFast). While on, the Track drawer hides the
+    // "Pay with PayFast" card — this is the server-side truth, so a stale page or a direct POST can't
     // still spin up a PayFast redirect against an unverified merchant.
     try {
         const pfd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'payfast_online_disabled'");
@@ -894,6 +899,152 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
                 });
         } catch (ex) {
             console.error("Pay Route Error:", ex);
+            res.status(500).json({ success: false, message: 'Internal server error.' });
+        }
+    });
+});
+
+// ── Ozow Instant EFT — server-side payment request ──────────────────────────────
+// Same guards as the PayFast /pay endpoint: status, duplicate, disable toggle, amount derivation.
+// Ozow is a server-side POST (not a browser form): we POST to api.ozow.com/postpaymentrequest,
+// get back a redirect URL, and send it to the browser.
+function buildAndSendOzowData(row, amt, milestoneDesc, mPaymentId, req, res) {
+    try {
+        const { decodeStoredText } = require('../../lib/html-sanitize');
+        const plain = (v) => decodeStoredText(v == null ? '' : String(v));
+        const amount = parseFloat(amt);
+        const baseUrl = ozowBaseUrl(req);
+        const isPortal = req.body.return_path === 'portal';
+
+        const { requestBody, apiUrl, apiKey } = buildOzowPaymentRequest({
+            amount: amount,
+            transactionReference: mPaymentId,
+            bankReference: `Booking ${row.id}`,
+            cancelUrl:  isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
+            errorUrl:   isPortal ? `${baseUrl}/booking?id=${row.id}&payment=error`   : `${baseUrl}/?track=${row.id}&payment=error`,
+            successUrl: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success`  : `${baseUrl}/?track=${row.id}&payment=success`,
+            notifyUrl:  `${baseUrl}/api/payment/webhook/ozow`,
+            customer:   plain(row.email),
+            bookingId:  row.id,
+            optional1:  `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`
+        });
+
+        insertPaymentIntent(row.id, mPaymentId, amount, mPaymentId.split('_')[1] === 'FULL' ? 'FULL' : (mPaymentId.split('_')[1] || 'FULL').startsWith('SCHED') ? 'SCHED' : mPaymentId.split('_')[1] || 'FULL', null)
+            .catch(e => console.error(`[Ozow] Failed to record payment intent for booking #${row.id}:`, e.message));
+
+        console.log(`[Ozow] Payment initiated: Booking #${row.id}, ref: ${mPaymentId}, Amount: R${amount.toFixed(2)}`);
+
+        // Server-side POST to Ozow
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'ApiKey': apiKey,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+        .then(r => r.json())
+        .then(ozowRes => {
+            if (ozowRes.url && !ozowRes.errorMessage) {
+                res.json({ success: true, redirectUrl: ozowRes.url, paymentRequestId: ozowRes.paymentRequestId });
+            } else {
+                console.error(`[Ozow] Payment request rejected: ${ozowRes.errorMessage || 'unknown'}`);
+                res.status(400).json({ success: false, message: ozowRes.errorMessage || 'Ozow rejected the payment request. Please try again or use another payment method.' });
+            }
+        })
+        .catch(err => {
+            console.error(`[Ozow] Payment request failed:`, err.message);
+            res.status(502).json({ success: false, message: 'Could not reach the Ozow payment gateway. Please try again or use Bank Transfer (EFT).' });
+        });
+    } catch (ex) {
+        console.error("Ozow Pay Route Error:", ex);
+        res.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+}
+
+router.post('/api/public/bookings/:id/pay-ozow', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { payment_type, schedule_id } = req.body;
+    console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay-ozow - Type: ${payment_type}, schedule_id: ${schedule_id}`);
+
+    if (!schedule_id && (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type))) {
+        return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
+    }
+
+    // Ozow disabled toggle (mirrors the PayFast one)
+    try {
+        const ozd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'ozow_online_disabled'");
+        if (ozd && (ozd.setting_value === '1' || ozd.setting_value === 'true')) {
+            return res.status(503).json({ success: false, message: 'Ozow Instant EFT is temporarily unavailable. Please use Bank Transfer (EFT) or card payment instead.' });
+        }
+    } catch (err) { /* a read failure must not block paying */ }
+
+    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        try {
+            const status = (row.status || '').toUpperCase();
+            if (!['ACCEPTED', 'CONFIRMED'].includes(status)) {
+                return res.status(400).json({ success: false, message: `Payment not available: booking status is ${status}. Quote must be accepted first.` });
+            }
+            const payStatus = (row.payment_status || 'UNPAID').toUpperCase();
+            if (payStatus === 'PAID') {
+                return res.status(400).json({ success: false, message: 'This booking has already been fully paid.' });
+            }
+
+            // Schedule-based path
+            if (schedule_id) {
+                const schedId = parseInt(schedule_id, 10);
+                if (!Number.isInteger(schedId) || schedId <= 0) {
+                    return res.status(400).json({ success: false, message: 'Invalid schedule_id.' });
+                }
+                return getNextPayableScheduleRow(row.id, (nextErr, nextRow) => {
+                    if (nextErr || !nextRow) return res.status(400).json({ success: false, message: 'Nothing outstanding to pay.' });
+                    if (nextRow.id !== schedId) {
+                        return res.status(409).json({ success: false, message: `That installment isn't payable yet. Please pay "${nextRow.description}" first.` });
+                    }
+                    buildAndSendOzowData(row, nextRow.expected_amount, nextRow.description, `${row.id}_SCHED${nextRow.id}`, req, res);
+                });
+            }
+
+            // Legacy DEPOSIT/FULL path
+            if (payment_type === 'DEPOSIT' && payStatus !== 'UNPAID') {
+                return res.status(400).json({ success: false, message: payStatus === 'DEPOSIT_PAID'
+                    ? 'A deposit has already been paid. You can only pay the remaining balance.'
+                    : `Deposit payment is not available for a booking with status ${payStatus}.` });
+            }
+
+            let baseAmt = parseFloat(row.total_amount);
+            if (!(baseAmt > 0) && row.quote_amount) {
+                baseAmt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
+            }
+            if (isNaN(baseAmt) || baseAmt <= 0) {
+                return res.status(400).json({ success: false, message: 'Invalid quote amount. Please contact management.' });
+            }
+
+            getPaymentSchedulesForPayfastInit(row.id, (schedErr, schedules) => {
+                let amt = baseAmt;
+                let milestoneDesc = 'Full Payment';
+                const paidSoFar = parseFloat(row.amount_paid) || 0;
+
+                if (payment_type === 'FULL') {
+                    if (paidSoFar > 0) {
+                        amt = Math.round((baseAmt - paidSoFar) * 100) / 100;
+                        milestoneDesc = 'Balance Payment';
+                    }
+                } else if (!schedErr && schedules && schedules.length > 0) {
+                    amt = parseFloat(schedules[0].expected_amount);
+                    milestoneDesc = schedules[0].description;
+                } else {
+                    amt = baseAmt / 2;
+                    milestoneDesc = 'Deposit';
+                }
+                if (!(amt > 0)) return res.status(400).json({ success: false, message: 'Nothing outstanding to pay.' });
+
+                buildAndSendOzowData(row, amt, milestoneDesc, `${row.id}_${payment_type}`, req, res);
+            });
+        } catch (ex) {
+            console.error("Ozow Pay Route Error:", ex);
             res.status(500).json({ success: false, message: 'Internal server error.' });
         }
     });

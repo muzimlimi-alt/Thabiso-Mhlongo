@@ -96,7 +96,7 @@
 
     // ---------------------------------------------------------------- Finance
 
-    var METHOD_LABEL = { payfast: 'PayFast (card / instant EFT)', eft: 'EFT / bank transfer', cash: 'Cash', other: 'Other' };
+    var METHOD_LABEL = { payfast: 'PayFast (card / instant EFT)', ozow: 'Ozow (instant EFT)', eft: 'EFT / bank transfer', cash: 'Cash', other: 'Other' };
     var QUOTE_LABEL = { draft: 'Draft', sent: 'Sent - awaiting the client', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', rejected: 'Declined' };
     var INVOICE_LABEL = { DRAFT: 'Draft', SENT: 'Sent - unpaid', PAID: 'Paid', OVERDUE: 'Overdue', PARTIAL: 'Part paid', PARTIALLY_PAID: 'Part paid' };
 
@@ -150,12 +150,12 @@
         var waiting = '<ul class="db-facts">' +
             '<li><strong>' + count(p.eftAwaitingCheck.count) + '</strong> proof' + (p.eftAwaitingCheck.count === 1 ? '' : 's') + ' of payment awaiting checking (' + zar(p.eftAwaitingCheck.value) + ' claimed) - not counted until approved <small>as of today</small></li>' +
             '<li><strong>' + count(p.eftRejected) + '</strong> proof' + (p.eftRejected === 1 ? '' : 's') + ' of payment rejected or sent back in the period</li>' +
-            '<li><strong>' + count(p.ticketCheckoutsOpen) + '</strong> ticket checkout' + (p.ticketCheckoutsOpen === 1 ? '' : 's') + ' still open at PayFast <small>as of today</small></li>' +
+            '<li><strong>' + count(p.ticketCheckoutsOpen) + '</strong> ticket checkout' + (p.ticketCheckoutsOpen === 1 ? '' : 's') + ' still open at gateway <small>as of today</small></li>' +
             '<li><strong>' + count(p.ticketPaymentsFailed) + '</strong> ticket payment' + (p.ticketPaymentsFailed === 1 ? '' : 's') + ' failed in the period</li>' +
             '<li><strong>' + zar(p.refunds) + '</strong> refunded in the period</li>' +
             '<li><strong>' + zar(p.outstanding) + '</strong> still owed on bookings <small>as of today</small></li></ul>';
         html += '<div class="db-pair">' + panel('Booking payments by method', 'fa-credit-card', '<div id="dbFinMethods" class="db-chart db-chart--donut"></div>' + methodsHtml) +
-            panel('Pending, failed and refunded', 'fa-hourglass-half', waiting, 'PayFast records completed booking payments only, so abandoned booking checkouts are not listed.') + '</div>';
+            panel('Pending, failed and refunded', 'fa-hourglass-half', waiting, 'PayFast / Ozow record completed booking payments only, so abandoned booking checkouts are not listed.') + '</div>';
 
         // E. quotations and invoices
         var q = f.documents.quotes.map(function (r) { return { label: QUOTE_LABEL[r.status] || r.status, value: r.value, n: r.count }; });

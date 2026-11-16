@@ -36,14 +36,14 @@ router.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrato
             CASE WHEN ${AGREED} THEN COALESCE(b.amount_outstanding, 0) ELSE 0 END AS outstanding,
             CASE WHEN ${AGREED} THEN 'quoted' ELSE 'none' END AS amount_basis,
 
-            -- PayFast transactions (non-duplicate)
-            COALESCE(SUM(CASE WHEN t.source = 'payfast' AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS payfast_total,
+            -- Online gateway transactions (PayFast + Ozow, non-duplicate)
+            COALESCE(SUM(CASE WHEN t.source IN ('payfast','ozow') AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS payfast_total,
             -- Manual transactions (non-duplicate)
             COALESCE(SUM(CASE WHEN t.source = 'manual' AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS manual_total,
             -- All flagged duplicates
             COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 1 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS duplicate_total,
 
-            -- Effective received = payfast + manual (excluding duplicates)
+            -- Effective received = online (payfast+ozow) + manual (excluding duplicates)
             COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS effective_received,
 
             -- Warning flags

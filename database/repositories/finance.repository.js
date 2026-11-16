@@ -224,6 +224,31 @@ function insertPayfastTransaction(bookingId, itnAmount, mappedMethod, itnRef, pf
                          VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', 'payfast', ?, ?, ?, 1)`,
         [bookingId, itnAmount, mappedMethod, itnRef, pfPaymentId, pfStatus, receivedSignature]);
 }
+// Ozow notification handler — idempotency pre-check.
+function getOzowTransactionByReference(reference, bookingId) {
+    return new Promise(resolve => {
+        db.get("SELECT id FROM transactions WHERE reference = ? AND booking_id = ? AND source = 'ozow'",
+            [reference, bookingId], (e, row) => resolve(!!row));
+    });
+}
+// Ozow notification handler — the atomic credit's own transactions row, inside withDbTransaction().
+function insertOzowTransaction(bookingId, amount, mappedMethod, transactionId, ozowStatus, hashValue) {
+    return promised(
+        `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference,
+                             transaction_date, status, source, pf_payment_id, pf_status, pf_signature, is_verified)
+                         VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', 'ozow', ?, ?, ?, 1)`,
+        [bookingId, amount, mappedMethod, transactionId, transactionId, ozowStatus, hashValue]);
+}
+// Ozow notification handler — duplicate-credit warning check.
+function getRecentOzowTransactionForBooking(bookingId, callback) {
+    db.get(
+        `SELECT id, amount, created_at FROM transactions
+                 WHERE booking_id = ? AND source = 'ozow' AND status = 'completed'
+                   AND created_at >= datetime('now', '-2 hours')
+                 ORDER BY created_at DESC LIMIT 1`,
+        [bookingId], callback);
+}
+
 // logPaymentEvent() — generic ITN/manual-payment audit trail (payment_logs half).
 function insertPaymentLogEntry(bookingId, eventType, rawPayloadJson, sigValid, amount, callback) {
     db.run(
@@ -609,6 +634,7 @@ module.exports = {
     insertPaymentIntent, getPaymentIntentByMPaymentId, markPaymentIntentFulfilled, getStuckPaymentIntents,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
+    getOzowTransactionByReference, insertOzowTransaction, getRecentOzowTransactionForBooking,
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
     getRecentPayfastTransactionForBooking, getCancellationsWithRefundedTotals,
     getTransactionsForBooking, getAlreadyRefundedAmount, insertRefundTransaction,

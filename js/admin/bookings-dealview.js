@@ -885,7 +885,8 @@
                     tlEntries.push({ when: contract.contract.signed_date, what: 'Contract signed', meta: contract.contract.signed_by ? ('Signed by ' + contract.contract.signed_by) : 'IP logged' });
                 }
                 if (row.payment_date) {
-                    tlEntries.push({ when: row.payment_date, what: 'Payment received', meta: [row.amount_paid ? 'R ' + parseFloat(row.amount_paid).toFixed(2) : '', row.payment_method === 'payfast' ? 'PayFast' : ''].filter(Boolean).join(' · ') });
+                    var pmLabel = row.payment_method === 'payfast' ? 'PayFast' : row.payment_method === 'ozow' ? 'Ozow' : '';
+                    tlEntries.push({ when: row.payment_date, what: 'Payment received', meta: [row.amount_paid ? 'R ' + parseFloat(row.amount_paid).toFixed(2) : '', pmLabel].filter(Boolean).join(' · ') });
                 }
                 tlEntries.sort(function(a, b) { return new Date(a.when) - new Date(b.when); });
                 var activityHtml = tlEntries.length

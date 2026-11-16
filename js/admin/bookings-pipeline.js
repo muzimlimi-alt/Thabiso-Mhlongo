@@ -542,12 +542,13 @@
             const isQuoteSent  = !!row.quoted_at;
             const isAccepted   = !!row.accepted_at;
             const isPayFast    = row.payment_method === 'payfast';
+            const isOzow       = row.payment_method === 'ozow';
             const isRefunded   = Number(row.refund_amount) > 0;
             const isPopiaDone  = !!row.popia_consent;
             const contractFinalisedRow = (String(row.contract_status || '').toLowerCase() === 'signed') || row.contract_is_frozen === 1;
             const contractUnsigned = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(s) && !contractFinalisedRow;
             const isTriaged = disposition !== 'active';
-            const hasAnyBadge = !!(row.event_id || row.venue_id || hasInvoice || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || contractUnsigned || isTriaged || row.rebooked_from_id || row.rebooked_as_id);
+            const hasAnyBadge = !!(row.event_id || row.venue_id || hasInvoice || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isOzow || isRefunded || isPopiaDone || contractUnsigned || isTriaged || row.rebooked_from_id || row.rebooked_as_id);
 
             if (!hasAnyBadge) return '';
 
@@ -568,6 +569,7 @@
                     <span class="atl-tag-badge atl-tag-badge--popia" style="display:${isPopiaDone ? 'inline-flex' : 'none'};">POPIA</span>
                     <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded ? 'inline-flex' : 'none'};">Refunded</span>
                     <span class="atl-tag-badge atl-tag-badge--payfast" style="display:${isPayFast ? 'inline-flex' : 'none'};">PayFast</span>
+                    <span class="atl-tag-badge atl-tag-badge--ozow" style="display:${isOzow ? 'inline-flex' : 'none'};">Ozow</span>
                     <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_from_id ? 'inline-flex' : 'none'};" title="This booking was created from cancelled booking #${row.rebooked_from_id}">&#x21BA; From #${row.rebooked_from_id}</span>
                     <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_as_id ? 'inline-flex' : 'none'};" title="This cancelled booking was rebooked as #${row.rebooked_as_id}">Rebooked &#x2192; #${row.rebooked_as_id}</span>
                 </div>

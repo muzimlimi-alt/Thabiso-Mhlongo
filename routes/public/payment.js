@@ -6,6 +6,7 @@ const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
 const { verifyPayFastItnSignature } = require('../../lib/payfast-signature');
 const { isSandboxPayfast, itnTimestampCheck, itnSourceIp, confirmItnWithPayfast } = require('../../lib/payfast-itn-checks');
+const { verifyNotificationHash: verifyOzowHash, isOzowComplete, isOzowCancelled, ozowCreds } = require('../../lib/ozow');
 const { isTicketPaymentId } = require('../../lib/ticketing-core');
 const ticketingPayments = require('../../lib/ticketing-payments');
 const {
@@ -30,6 +31,7 @@ const {
 const { insertAutoCreatedEvent } = require('../../database/repositories/calendar.repository');
 const {
     getPayfastTransactionByReference, insertPayfastTransaction, getPaymentLogsForBooking,
+    getOzowTransactionByReference, insertOzowTransaction,
     getPaymentIntentByMPaymentId, markPaymentIntentFulfilled
 } = require('../../database/repositories/finance.repository');
 const { markInvoicePaidIfOpenAsync } = require('../../database/repositories/invoices-quotations.repository');
@@ -477,6 +479,229 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): logPaymentEvent/alignMilestonePayments/updateBookingMilestones
 // moved to lib/payment-processing.js — see the require near the top of this file for the re-import.
+
+// ==========================================
+// Ozow Payment Notification — SECURE
+// ==========================================
+// Ozow posts application/x-www-form-urlencoded to notifyUrl. Fields: SiteCode, TransactionId,
+// TransactionReference, Amount, Status, CurrencyCode, IsTest, StatusMessage, Hash, SubStatus.
+// The hash is verified with SHA-512 of the concatenated notification fields + private key.
+router.post('/api/payment/webhook/ozow', async (req, res) => {
+    res.sendStatus(200);
+
+    const data = req.body;
+    if (!data || !data.TransactionReference) {
+        console.error('[Ozow] Empty or malformed notification received.');
+        return;
+    }
+
+    console.log(`[Ozow] Received notification: ref=${data.TransactionReference}, status=${data.Status}, txId=${data.TransactionId}`);
+
+    // Parse transactionReference: same format as PayFast's m_payment_id — `{bookingId}_{type}`
+    // For ticket orders: TKT_{orderId}
+    const txRef = data.TransactionReference;
+    if (isTicketPaymentId(txRef)) {
+        // Ticket orders via Ozow: handled by ticketing-payments with the Ozow-specific shape
+        return ticketingPayments.handleOzowNotification(req, data).catch(e => {
+            console.error(`[Ozow] Ticket notification handler error: ${e.message}`);
+        });
+    }
+
+    const parts = txRef.split('_');
+    const bookingId = parseInt(parts[0], 10);
+    const rawType = parts[1] || 'FULL';
+    const paymentType = rawType.startsWith('SCHED') ? 'SCHED' : rawType;
+
+    if (isNaN(bookingId)) {
+        console.error('[Ozow] Invalid bookingId in TransactionReference:', txRef);
+        return;
+    }
+
+    try {
+        logPaymentEvent(bookingId, 'OZOW_NOTIFICATION_RECEIVED', data, false);
+
+        // ── A. Hash Verification ──
+        const creds = ozowCreds();
+        const hashResult = verifyOzowHash(data, creds.privateKey);
+
+        if (!hashResult.valid) {
+            console.error(`[Ozow] HASH MISMATCH booking #${bookingId} — received: ${data.Hash}`);
+            logPaymentEvent(bookingId, 'OZOW_FAILED_HASH', data, false);
+            if (!creds.isTest) return;
+            console.warn(`[Ozow] Test mode: proceeding despite hash mismatch.`);
+        } else {
+            console.log(`[Ozow] Hash valid for booking #${bookingId}`);
+        }
+
+        // ── B. Site Code Verification ──
+        if (String(data.SiteCode).toLowerCase() !== String(creds.siteCode).toLowerCase()) {
+            console.error(`[Ozow] SITE CODE MISMATCH booking #${bookingId}: got ${data.SiteCode}, expected ${creds.siteCode}`);
+            logPaymentEvent(bookingId, 'OZOW_FAILED_SITE_CODE', data, false);
+            return;
+        }
+
+        // ── C. Database Lookup ──
+        const booking = await getBookingByIdAsync(bookingId);
+        if (!booking) {
+            console.error(`[Ozow] Booking #${bookingId} NOT FOUND.`);
+            notify.emit('finance.payment_unmatched', { bookingId, amount: parseFloat(data.Amount) || null, gatewayPaymentId: data.TransactionId || null }, { actorType: 'gateway', actorLabel: 'Ozow' });
+            return;
+        }
+
+        if (booking.payment_status === 'PAID') {
+            console.warn(`[Ozow] Booking #${bookingId} already fully PAID. Ignoring duplicate.`);
+            logPaymentEvent(bookingId, 'OZOW_IGNORED_DUPLICATE', data, true);
+            return;
+        }
+
+        // ── D. Idempotency ──
+        const ozowTxId = data.TransactionId;
+        if (!ozowTxId && !creds.isTest) {
+            console.error(`[Ozow] Missing TransactionId for booking #${bookingId} in production — rejecting.`);
+            logPaymentEvent(bookingId, 'OZOW_FAILED_NO_TX_ID', data, false);
+            return;
+        }
+        const idempotencyRef = ozowTxId || `synthetic-ozow-${bookingId}-${data.Amount}-${data.Status}`;
+        const alreadyProcessed = await getOzowTransactionByReference(idempotencyRef, bookingId);
+        if (alreadyProcessed) {
+            console.warn(`[Ozow] Duplicate notification ignored for ref=${idempotencyRef} booking #${bookingId}`);
+            logPaymentEvent(bookingId, 'OZOW_IGNORED_DUPLICATE', data, true);
+            return;
+        }
+
+        // ══════════════════════════════════════════
+        // Ledger Execution (mirrors the PayFast path)
+        // ══════════════════════════════════════════
+        if (isOzowComplete(data.Status)) {
+            const ozowAmount = parseFloat(data.Amount) || 0;
+
+            // Amount verification against recorded intent
+            const intent = await getPaymentIntentByMPaymentId(txRef).catch(() => null);
+            if (intent && Math.abs(ozowAmount - parseFloat(intent.expected_amount)) > 0.01) {
+                console.error(`[Ozow] AMOUNT MISMATCH booking #${bookingId}: notification=R${ozowAmount.toFixed(2)}, expected R${parseFloat(intent.expected_amount).toFixed(2)}`);
+                logPaymentEvent(bookingId, 'OZOW_FAILED_AMOUNT_MISMATCH', data, true);
+                if (!creds.isTest) {
+                    notify.emit('finance.payment_amount_mismatch', { bookingId, received: ozowAmount, expected: parseFloat(intent.expected_amount), gatewayPaymentId: ozowTxId || null }, { actorType: 'gateway', actorLabel: 'Ozow' });
+                    return;
+                }
+                console.warn(`[Ozow] Test mode: proceeding despite amount mismatch.`);
+            } else if (intent) {
+                console.log(`[Ozow] Amount matches recorded intent for booking #${bookingId}`);
+            }
+
+            const currentTotal = parseFloat(booking.total_amount) || parseFloat((booking.quote_amount||'0').replace(/[^0-9.]/g, '')) || 0;
+            if (currentTotal === 0) {
+                console.error(`[Ozow] REJECTED: booking #${bookingId} has no resolvable total_amount.`);
+                logPaymentEvent(bookingId, 'OZOW_FAILED_NO_TOTAL', data, true);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: ozowTxId || null, detail: `Booking has no total amount set; Ozow payment of R${ozowAmount.toFixed(2)} could not be applied.` }, { actorType: 'gateway', actorLabel: 'Ozow' });
+                return;
+            }
+
+            const outcome = await withDbTransaction(async () => {
+                try { await dbRun("BEGIN IMMEDIATE"); } catch (beginErr) { return { retry: true }; }
+                try {
+                    await insertOzowTransaction(bookingId, ozowAmount, 'ozow', idempotencyRef, data.Status, data.Hash || '');
+
+                    const credit = await applyPayfastPaymentToBooking(
+                        ozowAmount, currentTotal, paymentType,
+                        ozowTxId || null, data.Hash || '', JSON.stringify(data), 'ozow',
+                        bookingId
+                    );
+                    if (credit.changes === 0) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return { overpayment: true };
+                    }
+
+                    const fresh = await getBookingByIdAsync(bookingId);
+                    if (fresh && fresh.payment_status === 'PAID') {
+                        await markInvoicePaidIfOpenAsync(bookingId);
+                    }
+
+                    await dbRun("COMMIT");
+                    return { ok: true, fresh };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    if (/UNIQUE constraint/i.test(txErr.message || '')) return { duplicate: true };
+                    return { error: txErr };
+                }
+            });
+
+            if (outcome.retry) { logPaymentEvent(bookingId, 'OZOW_DEFERRED_DB_BUSY', data, true); return; }
+            if (outcome.duplicate) {
+                console.warn(`[Ozow] Duplicate txId for booking #${bookingId} — rejected by UNIQUE constraint.`);
+                logPaymentEvent(bookingId, 'OZOW_IGNORED_DUPLICATE', data, true, idempotencyRef, { auditOnly: true });
+                return;
+            }
+            if (outcome.error) {
+                console.error(`[Ozow] Credit transaction failed for booking #${bookingId}:`, outcome.error.message);
+                logPaymentEvent(bookingId, 'OZOW_CRITICAL_ERROR', data, false);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: ozowTxId || null, detail: `Ozow confirmed R${ozowAmount.toFixed(2)} but recording failed: ${outcome.error.message}.` }, { actorType: 'gateway', actorLabel: 'Ozow' });
+                return;
+            }
+            if (outcome.overpayment) {
+                console.warn(`[Ozow] OVERPAYMENT REJECTED for booking #${bookingId}. Total: ${currentTotal}, Ozow: ${ozowAmount}`);
+                logPaymentEvent(bookingId, 'OZOW_OVERPAYMENT_REJECTED', data, true);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: ozowTxId || null, detail: `Ozow sent R${ozowAmount.toFixed(2)} but crediting exceeds R${currentTotal.toFixed(2)} total. NOT applied.` }, { actorType: 'gateway', actorLabel: 'Ozow' });
+                return;
+            }
+
+            if (intent) markPaymentIntentFulfilled(txRef).catch(e => console.error(`[Ozow] Failed to mark intent fulfilled for booking #${bookingId}:`, e.message));
+            logPaymentEvent(bookingId, 'OZOW_VERIFIED_OK', data, true, idempotencyRef, { auditOnly: true });
+            const updatedRow = outcome.fresh;
+            const newAmountPaid = parseFloat(updatedRow.amount_paid) || 0;
+            const newOutstanding = parseFloat(updatedRow.amount_outstanding) || 0;
+            const newPaymentStatus = updatedRow.payment_status;
+
+            console.log(`[Ozow] Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
+            notify.emit('finance.payment_received', { bookingId, amount: ozowAmount, method: 'ozow', paymentStatus: newPaymentStatus }, { actorType: 'gateway', actorLabel: 'Ozow' });
+            notify.resolve('finance.payment_failed', bookingId, { note: 'An Ozow payment was received.' });
+            notify.resolve('finance.payment_pending_timeout', bookingId, { note: 'The payment notification arrived (Ozow).' });
+
+            await syncBookingToCalendar(updatedRow).catch(e => console.error('[Ozow] Calendar sync failed:', e.message));
+            await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus).catch(e => console.error('Ozow payment-received email failed:', e.message));
+            sendAdminPaymentNotification(updatedRow, newAmountPaid, newPaymentStatus).catch(e => console.error('Ozow admin notification failed:', e.message));
+            if (newPaymentStatus === 'DEPOSIT_PAID' && newOutstanding > 0) {
+                sendDepositBalanceDueEmail(updatedRow, newOutstanding).catch(e => console.error('Ozow deposit balance-due email failed:', e.message));
+            }
+            if (newPaymentStatus === 'PAID') {
+                sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Ozow confirmed email failed:', e.message));
+                sendPaidReceiptEmail(updatedRow).catch(e => console.error('Ozow paid receipt email failed:', e.message));
+            }
+            if (updatedRow.status === 'CONFIRMED' && !updatedRow.event_id) {
+                const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
+                insertAutoCreatedEvent(
+                    updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
+                    updatedRow.event_location || null, updatedRow.venue_id || null, bookingId,
+                    function(evErr) {
+                        if (evErr) { console.error('[Auto-Event] Ozow: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
+                        setBookingEventId(this.lastID, bookingId);
+                    }
+                );
+            }
+            alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
+                if (psErr) console.error(`[Payment Schedules] Ozow update failed for booking #${bookingId}:`, psErr.message);
+            });
+        } else {
+            console.warn(`[Ozow] Payment status is "${data.Status}" (not Complete) for booking #${bookingId}`);
+            logPaymentEvent(bookingId, `OZOW_STATUS_${String(data.Status).toUpperCase()}`, data, true);
+            if (isOzowCancelled(data.Status)) {
+                console.log(`[Ozow] Booking #${bookingId} payment cancelled by customer. Status unchanged.`);
+            } else {
+                notify.emit('finance.payment_failed', { bookingId, status: data.Status, amount: parseFloat(data.Amount) || null }, { actorType: 'gateway', actorLabel: 'Ozow' });
+                markBookingPaymentFailedIfUnpaid(bookingId);
+            }
+            getBookingById(bookingId, (e, failedRow) => {
+                if (!e && failedRow && !isOzowCancelled(data.Status)) {
+                    sendPaymentFailedEmail(failedRow).catch(e => console.error('Ozow payment-failed email error:', e.message));
+                }
+            });
+        }
+
+    } catch (ozowError) {
+        console.error(`[Ozow] Unhandled error processing notification for booking #${bookingId}:`, ozowError);
+        logPaymentEvent(bookingId, 'OZOW_CRITICAL_ERROR', data, false);
+    }
+});
 
 // ==========================================
 // Payment Return Pages (cosmetic — ITN is the real confirmation)

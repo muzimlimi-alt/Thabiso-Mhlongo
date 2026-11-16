@@ -1641,7 +1641,7 @@
 									     When only one applies it shows on its own, with no chooser. See trkUpdatePaymentTabs(). -->
 									<p id="trkPayHow" class="trk-pay-how" style="display:none;">Choose how you'd like to pay</p>
 
-									<!-- Option 1: Pay online (PayFast). With a payment schedule, one button pays the next payment
+									<!-- Option 1: Pay with PayFast. With a payment schedule, one button pays the next payment
 									     (#trkSchedPay; class is-scheduled hides the deposit/full buttons); without one, the
 									     deposit/full buttons are the way to pay. -->
 									<div class="trk-payopt" id="trkPayOptPayfast">
@@ -1649,14 +1649,14 @@
 											<button type="button" class="trk-payopt__head" id="trkPayTabPayfast" aria-expanded="true" aria-controls="paymentSection">
 												<span class="trk-payopt__icon" aria-hidden="true"><i class="fa-solid fa-credit-card"></i></span>
 												<span class="trk-payopt__text">
-													<span class="trk-payopt__title">Pay online</span>
+													<span class="trk-payopt__title">Pay with PayFast</span>
 													<span class="trk-payopt__sub">Card or Instant EFT, secured by PayFast</span>
 												</span>
 												<span class="trk-payopt__radio" aria-hidden="true"></span>
 											</button>
 										</h4>
 										<div id="paymentSection" class="trk-pay-section">
-											<p>Choose a payment option securely via PayFast:</p>
+											<p>Pay securely with PayFast:</p>
 											<div id="trkSchedPay"></div>
 											<button class="pay-btn pay-btn-deposit" data-type="DEPOSIT">
 												<i class="fa-solid fa-percent"></i>Pay Deposit
@@ -1668,14 +1668,39 @@
 										</div>
 									</div>
 
-									<!-- Option 2: Bank transfer (EFT): our banking details, the reference to use, and a place to send the proof
+									<!-- Option 2: Ozow Instant EFT — pay from your bank app via Ozow -->
+									<div class="trk-payopt" id="trkPayOptOzow">
+										<h4 class="trk-payopt__h">
+											<button type="button" class="trk-payopt__head" id="trkPayTabOzow" aria-expanded="false" aria-controls="ozowSection">
+												<span class="trk-payopt__icon" aria-hidden="true"><i class="fa-solid fa-building-columns"></i></span>
+												<span class="trk-payopt__text">
+													<span class="trk-payopt__title">Pay with Ozow</span>
+													<span class="trk-payopt__sub">Instant EFT &mdash; pay directly from your bank</span>
+												</span>
+												<span class="trk-payopt__radio" aria-hidden="true"></span>
+											</button>
+										</h4>
+										<div id="ozowSection" class="trk-pay-section" style="display:none;">
+											<p>Pay instantly from your bank account via Ozow:</p>
+											<div id="trkSchedPayOzow"></div>
+											<button class="pay-btn pay-btn-deposit ozow-pay-btn" data-type="DEPOSIT">
+												<i class="fa-solid fa-percent"></i>Pay Deposit
+											</button>
+											<button class="pay-btn pay-btn-full ozow-pay-btn" data-type="FULL" id="btnPayFullOzow">
+												<i class="fa-solid fa-bolt"></i>Pay Full Amount
+											</button>
+											<small class="trk-pay-secure"><i class="fa-solid fa-lock" aria-hidden="true"></i>Instant EFT, secured by Ozow</small>
+										</div>
+									</div>
+
+									<!-- Option 3: Bank transfer (EFT): our banking details, the reference to use, and a place to send the proof
 									     of payment. Filled by renderEftPanel() from the `eft` block of the tracking response (docs-internal/eft-payments.md). -->
 									<div class="trk-payopt" id="trkPayOptEft">
 										<h4 class="trk-payopt__h">
 											<button type="button" class="trk-payopt__head" id="trkPayTabEft" aria-expanded="false" aria-controls="eftSection">
 												<span class="trk-payopt__icon" aria-hidden="true"><i class="fa-solid fa-building-columns"></i></span>
 												<span class="trk-payopt__text">
-													<span class="trk-payopt__title">Bank transfer (EFT)</span>
+													<span class="trk-payopt__title">Pay with Bank Transfer (EFT)</span>
 													<span class="trk-payopt__sub">Pay from your banking app, then send us your proof of payment</span>
 												</span>
 												<span class="trk-payopt__radio" aria-hidden="true"></span>
@@ -1683,7 +1708,7 @@
 										</h4>
 										<div id="eftSection" class="trk-eft" style="display:none;">
 											<div class="trk-eft-title">
-												<i class="fa-solid fa-building-columns"></i>Pay by EFT (bank transfer)
+												<i class="fa-solid fa-building-columns"></i>Pay with Bank Transfer (EFT)
 											</div>
 											<div id="eftBody"></div>
 										</div>
@@ -2021,10 +2046,10 @@
 				<ul>
 					<li><strong>Contact &amp; booking forms:</strong> Name, email, phone, event details, and notes.</li>
 					<li><strong>Newsletter subscriptions:</strong> Your email address.</li>
-					<li><strong>Ticket purchases:</strong> When you buy tickets on this website we collect your name, email address and phone number (and any names you add to individual tickets) to issue your tickets, email them to you, admit you at the event and contact you about it. Payments are processed by PayFast; we do not see or store your card details. We keep order and payment records for as long as the law requires for financial records.</li>
+					<li><strong>Ticket purchases:</strong> When you buy tickets on this website we collect your name, email address and phone number (and any names you add to individual tickets) to issue your tickets, email them to you, admit you at the event and contact you about it. Payments are processed by PayFast or Ozow; we do not see or store your card or bank details. We keep order and payment records for as long as the law requires for financial records.</li>
 					<li><strong>Technical/usage data:</strong> IP address, browser type, and pages visited via server logs.</li>
 				</ul>
-				<p>We do <strong>not</strong> collect payment card details. Payments are processed securely by PayFast.</p>
+				<p>We do <strong>not</strong> collect payment card or bank details. Payments are processed securely by PayFast and Ozow.</p>
 
 				<hr>
 				<h5><i class="fa-solid fa-gears"></i>3. How We Use Your Information</h5>
@@ -2051,7 +2076,7 @@
 				<p>We do not sell your data. Limited sharing occurs with:</p>
 				<ul>
 					<li>Email providers (Gmail/SMTP) for confirmations and newsletters.</li>
-					<li>PayFast (payment status only, no card data).</li>
+					<li>PayFast and Ozow (payment status only, no card or bank data).</li>
 					<li>Hosting/infrastructure providers under confidentiality obligations.</li>
 				</ul>
 
@@ -3509,34 +3534,40 @@ $(document).ready(function() {
                     // Payment Buttons visibility logic tied to Ledger Engine
                     if (amountPaid >= totalScope && totalScope > 0) {
                         // Fully Paid
-                        $('#paymentSection').hide();
+                        $('#paymentSection, #ozowSection').hide();
                         $('#paymentSuccess').show();
                     } else if (['ACCEPTED', 'CONFIRMED'].includes(bStatus)) {
                         $('#paymentSuccess').hide();
                         $('#paymentSection').show();
-                        
+                        $('#ozowSection').show();
+
                         if (amountPaid > 0) {
                             // Partially Paid - Hide DEPOSIT, Force FULL to "Pay Remaining"
-                            $('.pay-btn[data-type="DEPOSIT"]').hide();
+                            $('.pay-btn[data-type="DEPOSIT"], .ozow-pay-btn[data-type="DEPOSIT"]').hide();
                             $('#btnPayFull').html('<i class="fa-solid fa-bolt" style="margin-right:6px;"></i>Pay Remaining (R ' + outstanding.toFixed(2) + ')');
+                            $('#btnPayFullOzow').html('<i class="fa-solid fa-building-columns" style="margin-right:6px;"></i>Pay Remaining (R ' + outstanding.toFixed(2) + ')');
                             if (bPay === 'FAILED') {
                                 $('#paymentSection p').html('<span style="color:var(--error);">Previous attempt failed.</span> Secure remaining balance:');
+                                $('#ozowSection p').html('<span style="color:var(--error);">Previous attempt failed.</span> Secure remaining balance:');
                             } else {
                                 $('#paymentSection p').text('Secure your remaining balance:');
+                                $('#ozowSection p').text('Secure your remaining balance:');
                             }
                         } else {
                             // Nobody paid anything yet
-                            $('.pay-btn[data-type="DEPOSIT"]').show();
+                            $('.pay-btn[data-type="DEPOSIT"], .ozow-pay-btn[data-type="DEPOSIT"]').show();
                             $('#btnPayFull').html('<i class="fa-solid fa-bolt" style="margin-right:6px;"></i>Pay Full Amount');
+                            $('#btnPayFullOzow').html('<i class="fa-solid fa-building-columns" style="margin-right:6px;"></i>Pay Full Amount');
                             if (bPay === 'FAILED') {
                                 $('#paymentSection p').html('<span style="color:var(--error);">Your last payment attempt failed.</span> Try again below:');
                             } else {
-                                $('#paymentSection p').text('Choose a payment option securely via PayFast:');
+                                $('#paymentSection p').text('Pay securely with PayFast:');
+                                $('#ozowSection p').text('Pay instantly from your bank account via Ozow:');
                             }
                         }
                     } else {
                         // Quote exists but hasn't been ACCEPTED implicitly yet
-                        $('#paymentSection').hide();
+                        $('#paymentSection, #ozowSection').hide();
                         $('#paymentSuccess').hide();
                     }
                 } else {
@@ -3544,7 +3575,7 @@ $(document).ready(function() {
                     $('#financialLedger').hide();
                     destroyAcceptPlan();
                     $('#acceptQuoteSection').hide();
-                    $('#paymentSection').hide();
+                    $('#paymentSection, #ozowSection').hide();
                     $('#paymentSuccess').hide();
                     $('#noQuoteSection').show();
                 }
@@ -3638,10 +3669,11 @@ $(document).ready(function() {
 
                 // Pay by EFT: banking details + proof-of-payment upload (hidden unless an administrator switched Manual EFT on)
                 planState.eft = data.eft || null;
-                // Hide-online-pay toggle: when the owner has turned "Hide Pay online" on in admin
-                // (e.g. while PayFast verification is pending), the "Pay online" option is hidden
+                // Hide-online-pay toggle: when the owner has turned "Hide PayFast" on in admin
+                // (e.g. while PayFast verification is pending), the "Pay with PayFast" option is hidden
                 // entirely so clients see only Bank Transfer. trkLayout() reads this below.
                 planState.payfastDisabled = !!data.payfast_disabled;
+                planState.ozowDisabled = !!data.ozow_disabled;
                 renderEftPanel(data.eft, data.payment_schedule);
 
                 trkRenderMyDetails();
@@ -3758,6 +3790,35 @@ $(document).ready(function() {
         }
     });
 
+    $(document).on('click', '.ozow-pay-btn', async function () {
+        var type = $(this).attr('data-type');
+        var scheduleId = $(this).attr('data-schedule-id');
+        var $btn = $(this);
+        var orig = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Redirecting to Ozow...');
+
+        try {
+            var payBody = scheduleId
+                ? { schedule_id: scheduleId, access_token: currentAccessToken }
+                : { payment_type: type, access_token: currentAccessToken };
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/pay-ozow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payBody)
+            });
+            var data = await res.json();
+            if (data.success && data.redirectUrl) {
+                window.location.href = data.redirectUrl;
+            } else {
+                window.notificationService.showError('Payment Failed', data.message || ('Status: ' + res.status));
+                $btn.prop('disabled', false).html(orig);
+            }
+        } catch (e) {
+            window.notificationService.showError('Connection Error', 'Ozow connection error.');
+            $btn.prop('disabled', false).html(orig);
+        }
+    });
+
     // S3-4: the Accept button needs the terms ticked AND, when the client is designing their own
     // plan, a plan that passes every rule (refreshAcceptBtn).
     $(document).on('change', '#chkTermsAgree', function() {
@@ -3770,7 +3831,7 @@ $(document).ready(function() {
     // the client has to do now (sign > accept > pay) move into #trkNextStep, everything else stays in
     // its collapsed row (.trk-card) with a one-line summary, and a row with nothing in it is hidden.
     var TRK_CARD_SIGNALS = {
-        cardPayment: ['#paymentSection', '#eftSection'],
+        cardPayment: ['#paymentSection', '#ozowSection', '#eftSection'],
         cardPlan: ['#paymentScheduleSection', '#financialLedger', '#planChangeReason'],
         cardQuotePlan: ['#quoteSection', '#acceptQuoteSection'],
         cardContract: ['#contractSignSection', '#contractSignedNotice'],
@@ -3821,16 +3882,21 @@ $(document).ready(function() {
         trkReturnHome();
         // Undo the last payment choice before anything is measured: a method the client didn't pick is
         // hidden by that class, and must still count as a method that applies.
-        $('#paymentSection, #eftSection').removeClass('trk-tab-off');
-        // Hide-online-pay toggle: when admin has turned it on, the "Pay online" option disappears
-        // from the drawer entirely and its #paymentSection is hidden, so trkUpdatePaymentTabs() below
-        // sees only #eftSection and shows it alone with no chooser.
+        $('#paymentSection, #ozowSection, #eftSection').removeClass('trk-tab-off');
+        // Hide-online-pay toggles: when admin has turned them on, the respective option disappears.
         if (planState.payfastDisabled) {
             $('#trkPayOptPayfast').hide();
             $('#paymentSection').hide();
         } else {
             $('#trkPayOptPayfast').show();
             $('#paymentSection').show();
+        }
+        if (planState.ozowDisabled) {
+            $('#trkPayOptOzow').hide();
+            $('#ozowSection').hide();
+        } else {
+            $('#trkPayOptOzow').show();
+            $('#ozowSection').show();
         }
         var view = planState.view || {};
         var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
@@ -3848,6 +3914,7 @@ $(document).ready(function() {
         if (fresh) trkActivePaymentMethod = $('#eftBody .trk-eft-list li').length ? 'eft' : 'payfast';
 
         trkRenderNextPay();
+        trkRenderNextPayOzow();
         trkUpdatePaymentTabs();
 
         var $next = $('#trkNextStepBody');
@@ -3907,6 +3974,29 @@ $(document).ready(function() {
                 .append('<i class="fa-solid fa-circle-check" aria-hidden="true"></i>')
                 .append(document.createTextNode(' Pay the full balance, ' + fmtRand(unpaidCents / 100))));
             // a div, not a <p>: the render code rewrites every `#paymentSection p`
+            $slot.append($('<div class="trk-pay-all-note"></div>').text('Settles all ' + unpaid.length + ' remaining payments at once.'));
+        }
+    }
+
+    function trkRenderNextPayOzow() {
+        var next = planState.nextRow;
+        var $slot = $('#trkSchedPayOzow').empty();
+        $('#ozowSection').toggleClass('is-scheduled', !!next);
+        if (!next) return;
+        var amount = fmtRand(next.expected_amount);
+        $slot.append($('<button type="button" class="ozow-pay-btn trk-sched-pay"></button>')
+            .attr('data-schedule-id', next.id)
+            .append('<i class="fa-solid fa-building-columns" aria-hidden="true"></i>')
+            .append(document.createTextNode(' Pay ' + amount + ' via Ozow')));
+
+        var v = planState.view || {};
+        var unpaid = (planState.schedule || []).filter(function (s) { return isLiveScheduleRow(s) && !trkIsPaidRow(s); });
+        var unpaidCents = unpaid.reduce(function (t, s) { return t + Math.round((parseFloat(s.expected_amount) || 0) * 100); }, 0);
+        var owedCents = Math.round(((v.totalScope || 0) - (v.amountPaid || 0)) * 100);
+        if (v.payStatus === 'DEPOSIT_PAID' && unpaid.length >= 2 && unpaidCents > 0 && Math.abs(unpaidCents - owedCents) <= 1) {
+            $slot.append($('<button type="button" class="ozow-pay-btn trk-pay-all" data-type="FULL"></button>')
+                .append('<i class="fa-solid fa-circle-check" aria-hidden="true"></i>')
+                .append(document.createTextNode(' Pay the full balance via Ozow, ' + fmtRand(unpaidCents / 100))));
             $slot.append($('<div class="trk-pay-all-note"></div>').text('Settles all ' + unpaid.length + ' remaining payments at once.'));
         }
     }
@@ -4076,7 +4166,7 @@ $(document).ready(function() {
         }
     });
 
-    // ── How to pay: Pay online / Bank transfer option cards ──────────
+    // ── How to pay: PayFast / Ozow / Bank Transfer option cards ──────────
     // Only when BOTH ways to pay apply right now — a real choice: each is a card with its own heading,
     // the chosen one open, the other folded to its heading. Otherwise whichever one applies shows on
     // its own. The unchosen method is hidden with a class (trk-tab-off), never its display, so the
@@ -4085,26 +4175,32 @@ $(document).ready(function() {
 
     function trkSetActivePaymentTab(method) {
         trkActivePaymentMethod = method;
-        var payfast = method !== 'eft';
-        $('#trkPayTabPayfast').attr('aria-expanded', payfast ? 'true' : 'false');
-        $('#trkPayTabEft').attr('aria-expanded', payfast ? 'false' : 'true');
-        $('#trkPayOptPayfast').toggleClass('is-selected', payfast);
-        $('#trkPayOptEft').toggleClass('is-selected', !payfast);
-        $('#paymentSection').toggleClass('trk-tab-off', !payfast);
-        $('#eftSection').toggleClass('trk-tab-off', payfast);
+        var methods = ['payfast', 'ozow', 'eft'];
+        var sectionMap = { payfast: '#paymentSection', ozow: '#ozowSection', eft: '#eftSection' };
+        var tabMap = { payfast: '#trkPayTabPayfast', ozow: '#trkPayTabOzow', eft: '#trkPayTabEft' };
+        var optMap = { payfast: '#trkPayOptPayfast', ozow: '#trkPayOptOzow', eft: '#trkPayOptEft' };
+        methods.forEach(function (m) {
+            var active = m === method;
+            $(tabMap[m]).attr('aria-expanded', active ? 'true' : 'false');
+            $(optMap[m]).toggleClass('is-selected', active);
+            $(sectionMap[m]).toggleClass('trk-tab-off', !active);
+        });
     }
 
     $(document).on('click', '.trk-payopt__head', function () {
-        trkSetActivePaymentTab($(this).attr('id') === 'trkPayTabEft' ? 'eft' : 'payfast');
+        var id = $(this).attr('id');
+        var method = id === 'trkPayTabEft' ? 'eft' : id === 'trkPayTabOzow' ? 'ozow' : 'payfast';
+        trkSetActivePaymentTab(method);
     });
 
-    // Runs inside trkLayout(), after it has cleared the last choice (so both methods are measured).
     function trkUpdatePaymentTabs() {
-        var both = trkElVisible('#paymentSection') && trkElVisible('#eftSection');
-        $('#trkPayBlock').toggleClass('has-choice', both);
-        $('#trkPayHow').toggle(both);
-        if (both) trkSetActivePaymentTab(trkActivePaymentMethod);
-        else $('#trkPayOptPayfast, #trkPayOptEft').removeClass('is-selected');
+        var pf = trkElVisible('#paymentSection'), oz = trkElVisible('#ozowSection'), ef = trkElVisible('#eftSection');
+        var count = (pf ? 1 : 0) + (oz ? 1 : 0) + (ef ? 1 : 0);
+        var multi = count > 1;
+        $('#trkPayBlock').toggleClass('has-choice', multi);
+        $('#trkPayHow').toggle(multi);
+        if (multi) trkSetActivePaymentTab(trkActivePaymentMethod);
+        else $('#trkPayOptPayfast, #trkPayOptOzow, #trkPayOptEft').removeClass('is-selected');
     }
 
     // ── Pay by EFT (docs-internal/eft-payments.md) ──
@@ -4475,7 +4571,7 @@ $(document).ready(function() {
         $('#quoteSection, #noQuoteSection, #paymentSuccess, #acceptQuoteSection').hide();
         $('#cancelledNotice, #completedNotice, #expiredNotice, #clientCancelSection, #quotePdfSection, #invoiceSection, #paymentScheduleSection, #contractDownloadSection, #contractSignSection, #contractSignedNotice').hide();
         $('#paymentSection').show();
-        $('#paymentSection p').text('Choose a payment option to confirm your booking:');
+        $('#paymentSection p').text('Pay securely with PayFast:');
         $('#trkPayHow, #trkNextStep, #trkNextPay, #trkStepLine').hide();
         $('#trkUpdatedAt').text('');
         trkCloseContactForm();
@@ -4484,21 +4580,22 @@ $(document).ready(function() {
         planState.booking = null;
         $('#trkMyDetails').hide();
         $('#trkPayBlock').removeClass('has-choice');
-        $('#trkPayOptPayfast, #trkPayOptEft').removeClass('is-selected');
+        $('#trkPayOptPayfast, #trkPayOptOzow, #trkPayOptEft').removeClass('is-selected');
         planState.eft = null;
         trkReturnHome();
         trkLayoutKey = null;
         trkActivePaymentMethod = 'payfast';
         planState.nextRow = null;
-        $('#trkSchedPay').empty();
-        $('#paymentSection').removeClass('is-scheduled');
-        $('#paymentSection, #eftSection').removeClass('trk-tab-off');
-        $('.pay-btn[data-type="DEPOSIT"]').show();
+        $('#trkSchedPay, #trkSchedPayOzow').empty();
+        $('#paymentSection, #ozowSection').removeClass('is-scheduled');
+        $('#paymentSection, #ozowSection, #eftSection').removeClass('trk-tab-off');
+        $('.pay-btn[data-type="DEPOSIT"], .ozow-pay-btn[data-type="DEPOSIT"]').show();
         $('.pay-btn[data-type="FULL"]').html('<i class="fa-solid fa-bolt" style="margin-right:6px;"></i>Pay Full Amount');
+        $('.ozow-pay-btn[data-type="FULL"]').html('<i class="fa-solid fa-building-columns" style="margin-right:6px;"></i>Pay Full Amount');
         $('#trackId, #trackEmail, #trackCode').val('');
         $('#trackError').hide();
         $('#trackCodeError').hide().text('');
-        $('.pay-btn').prop('disabled', false);
+        $('.pay-btn, .ozow-pay-btn').prop('disabled', false);
         $('.trk-return-alert').remove();
         // Client payment plans: drop both builders and everything they were built from, so unsaved
         // edits never resurface on the next booking looked up in this drawer.
