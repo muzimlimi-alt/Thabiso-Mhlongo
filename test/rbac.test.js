@@ -20,6 +20,8 @@ const ROUTES = [
     // ── administrator only ──
     { method: 'GET', path: '/api/admin/users', role: 'administrator' },
     { method: 'GET', path: '/api/admin/user-login-logs', role: 'administrator' },
+    { method: 'GET', path: '/api/admin/roles', role: 'administrator' },
+    { method: 'GET', path: '/api/admin/permissions', role: 'administrator' },
     // ── administrator + manager ──
     { method: 'GET', path: '/api/admin/financial_audit_log', role: 'manager' },
     { method: 'GET', path: '/api/admin/finance/export', role: 'manager' },
@@ -37,6 +39,7 @@ const ROUTES = [
     { method: 'GET', path: '/api/admin/email-templates', role: 'manager' },
     { method: 'GET', path: '/api/admin/popia/requests/export', role: 'manager' },
     // ── any authenticated admin role (no requireRole layered on top of requireAdmin) ──
+    { method: 'GET', path: '/api/admin/me/permissions', role: 'any' },
     { method: 'GET', path: '/api/admin/analytics/summary', role: 'any' },
     { method: 'GET', path: '/api/admin/analytics/visits-over-time', role: 'any' },
     { method: 'GET', path: '/api/admin/analytics/traffic-sources', role: 'any' },

@@ -1,0 +1,190 @@
+/* RBAC Roles & Permission Matrix — css/admin/21-rbac-matrix.css
+   Uses existing Atelier tokens (css/core/tokens.css). No new colours. */
+
+/* ── Role cards grid ── */
+.rbac-roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.rbac-role-card {
+    background: var(--atl-card);
+    border: 1px solid var(--atl-line);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color .15s;
+}
+.rbac-role-card:hover { border-color: var(--atl-line-strong); }
+.rbac-role-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.rbac-role-card__name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--atl-ink);
+    margin: 0;
+}
+.rbac-role-card__badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+.rbac-role-card__badge--system   { background: color-mix(in srgb, var(--atl-blue) 15%, transparent); color: var(--atl-blue); }
+.rbac-role-card__badge--custom   { background: color-mix(in srgb, var(--atl-green) 15%, transparent); color: var(--atl-green); }
+.rbac-role-card__badge--inactive { background: color-mix(in srgb, var(--atl-muted) 15%, transparent); color: var(--atl-muted); }
+.rbac-role-card__desc {
+    font-size: 12px;
+    color: var(--atl-muted);
+    margin: 0;
+    line-height: 1.4;
+}
+.rbac-role-card__stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--atl-ink-dim);
+    border-top: 1px solid var(--atl-line);
+    padding-top: 10px;
+    margin-top: auto;
+}
+.rbac-role-card__stats span { display: flex; align-items: center; gap: 4px; }
+.rbac-role-card__stats i { font-size: 11px; color: var(--atl-muted); }
+.rbac-role-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* ── Permission matrix table ── */
+.rbac-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.rbac-matrix th,
+.rbac-matrix td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--atl-line);
+    text-align: center;
+    white-space: nowrap;
+}
+.rbac-matrix th {
+    position: sticky;
+    top: 0;
+    background: var(--atl-card);
+    color: var(--atl-ink-dim);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    z-index: 2;
+}
+.rbac-matrix td:first-child,
+.rbac-matrix th:first-child {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    background: var(--atl-card);
+    z-index: 1;
+    min-width: 160px;
+}
+.rbac-matrix th:first-child { z-index: 3; }
+.rbac-matrix__module {
+    font-weight: 600;
+    color: var(--atl-ink);
+    background: color-mix(in srgb, var(--atl-line) 50%, transparent) !important;
+}
+.rbac-matrix__perm {
+    padding-left: 24px !important;
+    color: var(--atl-ink-dim);
+    font-weight: 400;
+}
+.rbac-matrix__check {
+    color: var(--atl-green);
+    font-size: 14px;
+}
+.rbac-matrix__deny {
+    color: var(--atl-clay);
+    font-size: 12px;
+}
+.rbac-matrix__blank {
+    color: var(--atl-muted-dim);
+}
+
+/* ── Perm-edit drawer grid ── */
+.rbac-perm-module {
+    margin-bottom: 16px;
+}
+.rbac-perm-module__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--atl-ink);
+    margin: 0 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--atl-line);
+    text-transform: capitalize;
+}
+.rbac-perm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--atl-ink-dim);
+}
+.rbac-perm-row label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+/* ── Audit log rows ── */
+.rbac-audit-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--atl-line);
+    font-size: 12px;
+    color: var(--atl-ink-dim);
+}
+.rbac-audit-row__icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    background: color-mix(in srgb, var(--atl-blue) 12%, transparent);
+    color: var(--atl-blue);
+}
+.rbac-audit-row__time {
+    font-size: 11px;
+    color: var(--atl-muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+.rbac-audit-row__detail { flex: 1; }
+.rbac-audit-row__action {
+    font-weight: 600;
+    color: var(--atl-ink);
+}
+
+/* ── Responsive ── */
+@media (max-width: 767px) {
+    .rbac-roles-grid { grid-template-columns: 1fr; }
+    .rbac-matrix { font-size: 11px; }
+    .rbac-matrix th, .rbac-matrix td { padding: 5px 6px; }
+}
+@media (max-width: 479px) {
+    .rbac-role-card { padding: 14px; }
+    .rbac-role-card__name { font-size: 14px; }
+}

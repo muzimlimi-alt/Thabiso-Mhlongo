@@ -360,6 +360,7 @@
                         <button type="button" class="atl-nav-parent sh-nav-item" aria-expanded="false" aria-controls="navAccess"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="tm-nav-text sh-lbl">People &amp; Access</span><span class="atl-nav-chev sh-chev"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span></button>
                         <ul class="atl-nav-sub sh-nav-sub" id="navAccess" data-title="People &amp; Access">
                             <li><a href="#usersAdmin" class="tm-nav-link" title="User management &amp; roles"><span class="tm-nav-text">Users</span></a></li>
+                            <li><a href="#rolesAdmin" class="tm-nav-link" title="Roles &amp; permission matrix"><span class="tm-nav-text">Roles &amp; Permissions</span></a></li>
                             <li><a href="#securityAdmin" class="tm-nav-link" title="Security &amp; audit trail"><span class="tm-nav-text">Security &amp; Audit</span></a></li>
                         </ul>
                     </li>
@@ -7856,6 +7857,120 @@
                 </div>
             </div>
 
+            <!-- Roles & Permissions -->
+            <div class="admin-section" id="rolesAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Access Control</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-user-shield"></i> Roles &amp; Permissions</h2>
+                            <p class="atl-section-sub">Manage roles, view the permission matrix, and configure user-level overrides.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button class="atl-btn atl-btn--primary" id="rbacCreateRoleBtn"><i class="fa-solid fa-plus"></i> New Role</button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="rbacPanelRoles" role="tab" aria-selected="true">
+                            <i class="fa-solid fa-id-badge"></i> Roles
+                        </button>
+                        <button class="atl-tab-btn" data-um-tab="rbacPanelMatrix" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-table-cells"></i> Permission Matrix
+                        </button>
+                        <button class="atl-tab-btn" data-um-tab="rbacPanelAudit" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-clipboard-list"></i> Access Audit Log
+                        </button>
+                    </div>
+
+                    <!-- PANEL 1: ROLES -->
+                    <div class="um-panel active" id="rbacPanelRoles">
+                        <div id="rbacRolesGrid" class="rbac-roles-grid">
+                            <p class="ntf-empty">Loading roles…</p>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 2: PERMISSION MATRIX -->
+                    <div class="um-panel" id="rbacPanelMatrix">
+                        <div class="atl-card" style="overflow-x:auto;">
+                            <div id="rbacMatrixWrap">
+                                <p class="ntf-empty">Loading permission matrix…</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 3: ACCESS AUDIT LOG -->
+                    <div class="um-panel" id="rbacPanelAudit">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow">
+                                <div>
+                                    <h4 class="um-section-label">RBAC Change Log</h4>
+                                    <p class="um-section-desc">Every permission grant, revoke, role creation, and user-override change.</p>
+                                </div>
+                                <button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" id="rbacAuditRefresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                            </div>
+                            <div id="rbacAuditList"><p class="ntf-empty">Loading audit log…</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role Edit/Create Drawer -->
+            <div class="atl-drawer-backdrop" id="rbacRoleDrawerBackdrop"></div>
+            <div class="atl-drawer" id="rbacRoleDrawer">
+                <div class="atl-drawer__header">
+                    <h3 class="atl-drawer__title" id="rbacRoleDrawerTitle">New Role</h3>
+                    <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('rbacRoleDrawer')" aria-label="Close">&times;</button>
+                </div>
+                <div class="atl-drawer__body">
+                    <form id="rbacRoleForm" autocomplete="off">
+                        <input type="hidden" id="rbacRoleId">
+                        <div class="dk-field">
+                            <label class="dk-label" for="rbacRoleName">Role Name</label>
+                            <input type="text" class="dk-input" id="rbacRoleName" required placeholder="e.g. Finance Officer">
+                        </div>
+                        <div class="dk-field">
+                            <label class="dk-label" for="rbacRoleKey">Key <span style="font-weight:normal; color:var(--atl-muted);">(lowercase, no spaces)</span></label>
+                            <input type="text" class="dk-input" id="rbacRoleKey" required placeholder="e.g. finance_officer" pattern="[a-z0-9_\-]+">
+                        </div>
+                        <div class="dk-field">
+                            <label class="dk-label" for="rbacRoleBase">Clone Permissions From</label>
+                            <select class="dk-input" id="rbacRoleBase">
+                                <option value="manager">Manager</option>
+                                <option value="assistant">Assistant</option>
+                            </select>
+                        </div>
+                        <div class="dk-field">
+                            <label class="dk-label" for="rbacRoleDesc">Description</label>
+                            <textarea class="dk-input" id="rbacRoleDesc" rows="2" placeholder="Optional description"></textarea>
+                        </div>
+                        <div class="dk-msg" id="rbacRoleMsg"></div>
+                    </form>
+                </div>
+                <div class="atl-drawer__footer">
+                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('rbacRoleDrawer')">Cancel</button>
+                    <button type="button" class="atl-btn atl-btn--primary" id="rbacRoleSaveBtn">Save Role</button>
+                </div>
+            </div>
+
+            <!-- Permission Edit Drawer (per-role) -->
+            <div class="atl-drawer-backdrop" id="rbacPermDrawerBackdrop"></div>
+            <div class="atl-drawer" id="rbacPermDrawer" style="max-width:720px;">
+                <div class="atl-drawer__header">
+                    <h3 class="atl-drawer__title" id="rbacPermDrawerTitle">Edit Permissions</h3>
+                    <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('rbacPermDrawer')" aria-label="Close">&times;</button>
+                </div>
+                <div class="atl-drawer__body">
+                    <div id="rbacPermGrid"><p class="ntf-empty">Loading…</p></div>
+                    <div class="dk-msg" id="rbacPermMsg"></div>
+                </div>
+                <div class="atl-drawer__footer">
+                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('rbacPermDrawer')">Cancel</button>
+                    <button type="button" class="atl-btn atl-btn--primary" id="rbacPermSaveBtn">Save Permissions</button>
+                </div>
+            </div>
+
             <!-- Security & Audit Tab -->
             <div class="admin-section" id="securityAdmin">
                 <div>
@@ -9590,7 +9705,25 @@
             window.admNav.applyRole(effectiveRole);
             // The account's saved look (Finish / accent / Presence) from the server: the same on every machine this account signs in on (js/appearance.js).
             if (window.atlAppearance && window.atlAppearance.syncFromServer) window.atlAppearance.syncFromServer();
+
+            // Fetch granular permissions for dynamic UI gating (RBAC Phase 5)
+            fetch('/api/admin/me/permissions', { credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.success) {
+                        window.currentUserPermissions = new Set(d.permissions || []);
+                        window.currentUserBaseRole = d.baseRole || effectiveRole;
+                    } else {
+                        window.currentUserPermissions = new Set();
+                        window.currentUserBaseRole = effectiveRole;
+                    }
+                })
+                .catch(function() { window.currentUserPermissions = new Set(); window.currentUserBaseRole = effectiveRole; });
         }
+        window.can = function(key) {
+            if (window.currentUserRole === 'administrator') return true;
+            return window.currentUserPermissions ? window.currentUserPermissions.has(key) : false;
+        };
 
         // ==========================================
         // Authentication Logic
@@ -12563,6 +12696,7 @@
     <link rel="stylesheet" href="css/overrides/fullcalendar.css">
 
     <link rel="stylesheet" href="css/admin/20-calendar-filters.css">
+    <link rel="stylesheet" href="css/admin/21-rbac-matrix.css">
     <!-- Admin shell (sidebar, top bar, account menu) — a copy of the O'luhle/TOCA admin shell.
          After every admin section sheet so it wins over their !important shell rules; before
          core/appearance.css so the Presence axis can still override density on top. -->
@@ -12973,6 +13107,10 @@
         // the promote success toast tells the admin to come check this tab.
         if (sectionId === 'eventsAdmin' && typeof renderEventsList === 'function') {
             renderEventsList();
+        }
+
+        if (sectionId === 'rolesAdmin' && typeof window.initRbacSection === 'function') {
+            window.initRbacSection();
         }
 
         // Banner Management Centre (Prompt 6) — populate category selects once, then (re)load the grid
@@ -14008,6 +14146,7 @@
     <script src="js/admin/policies.js?v=2"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
+    <script src="js/admin/roles-permissions.js?v=1"></script>
     <script src="js/admin/system-settings.js?v=nav8"></script>
     <script src="js/admin/business-profile.js?v=8"></script>
     <script src="js/admin/google-calendar.js?v=4"></script>

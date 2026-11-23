@@ -51,6 +51,7 @@
         brandingAdmin:     { label: 'Site Appearance',  title: 'Site Appearance',                  group: 'Public Site',  access: ADMIN },
         integrationsAdmin: { label: 'Integrations',     title: 'Integrations',              group: 'System',       access: ADMIN },
         usersAdmin:        { label: 'Users',            title: 'User Management',           group: 'People & Access', access: ADMIN },
+        rolesAdmin:        { label: 'Roles & Permissions', title: 'Roles & Permissions',    group: 'People & Access', access: ADMIN },
         securityAdmin:     { label: 'Security & Audit', title: 'Security & Audit',          group: 'People & Access', access: ADMIN },
         emailLogsAdmin:    { label: 'Delivery Log',     title: 'Delivery Log',              group: 'Email',        access: ADMIN },
         emailBannersAdmin: { label: 'Email Banners',    title: 'Email Banners',             group: 'Email',        access: ADMIN }
