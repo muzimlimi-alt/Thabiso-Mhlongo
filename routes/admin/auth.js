@@ -11,6 +11,7 @@ const {
     getAdminIdAndUsernameByEmail, insertPasswordResetToken, getAdminIdByEmail,
     getUnexpiredPasswordResetTokens, deletePasswordResetTokenById, updateAdminLoginLogHeartbeat,
 } = require('../../database/repositories/auth-users.repository');
+const { resolveBaseRole, getEffectivePermissions } = require('../../lib/rbac-engine');
 const router = express.Router();
 
 // Admin Login Route — P3-13: protected by tight brute-force rate limiter (5 attempts / 10 min)
@@ -39,24 +40,28 @@ router.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
                 req.session.must_change_password = row.must_change_password ? true : false;
                 // Remember me: 30-day persistent cookie; otherwise session-only (expires on browser close)
                 req.session.cookie.maxAge = remember_me ? 1000 * 60 * 60 * 24 * 30 : null;
-                
-                updateAdminLastLogin(row.id, () => {});
 
-                const ip = req.ip || '';
-                const ua = req.headers['user-agent'] || '';
+                resolveBaseRole(req.session.role, (baseRole) => {
+                    req.session.baseRole = baseRole;
 
-                insertAdminLoginLog(
-                    row.id, ip, ua,
-                    function(insertErr) {
-                        if (!insertErr) {
-                            req.session.loginLogId = this.lastID;
+                    updateAdminLastLogin(row.id, () => {});
+
+                    const ip = req.ip || '';
+                    const ua = req.headers['user-agent'] || '';
+
+                    insertAdminLoginLog(
+                        row.id, ip, ua,
+                        function(insertErr) {
+                            if (!insertErr) {
+                                req.session.loginLogId = this.lastID;
+                            }
+                            req.session.save((saveErr) => {
+                                if (saveErr) console.error('Error saving session after login:', saveErr);
+                                return res.json({ success: true, message: 'Login successful', role: req.session.role, baseRole, must_change_password: row.must_change_password ? true : false });
+                            });
                         }
-                        req.session.save((saveErr) => {
-                            if (saveErr) console.error('Error saving session after login:', saveErr);
-                            return res.json({ success: true, message: 'Login successful', role: row.role || 'manager', must_change_password: row.must_change_password ? true : false });
-                        });
-                    }
-                );
+                    );
+                });
             } else {
                 require('../../lib/security-alerts').recordFailedLogin(req, normalizedEmail, 'wrong password');   // Notification Centre
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -113,8 +118,12 @@ router.get('/api/admin/session', (req, res) => {
         // Try ID first
         getAdminSessionProfileById(req.session.adminId, (err, row) => {
             if (!err && row) {
-                req.session.role = row.role || 'manager'; // sync in session
-                return res.json({ success: true, id: row.id, username: row.username, email: row.email || '', full_name: row.full_name || '', phone: row.phone || '', role: row.role || 'manager', is_active: row.is_active, last_login_at: row.last_login_at, created_at: row.created_at });
+                req.session.role = row.role || 'manager';
+                resolveBaseRole(req.session.role, (baseRole) => {
+                    req.session.baseRole = baseRole;
+                    return res.json({ success: true, id: row.id, username: row.username, email: row.email || '', full_name: row.full_name || '', phone: row.phone || '', role: row.role || 'manager', baseRole, is_active: row.is_active, last_login_at: row.last_login_at, created_at: row.created_at });
+                });
+                return;
             }
             // Fallback to username if ID failed but username exists in session
             if (req.session.username) {
@@ -123,17 +132,54 @@ router.get('/api/admin/session', (req, res) => {
                         // Refresh session ID while we're at it
                         req.session.adminId = row2.id;
                         req.session.role = row2.role || 'manager';
-                        return res.json({ success: true, id: row2.id, username: row2.username, email: row2.email || '', full_name: row2.full_name || '', phone: row2.phone || '', role: row2.role || 'manager', is_active: row2.is_active, last_login_at: row2.last_login_at, created_at: row2.created_at });
+                        resolveBaseRole(req.session.role, (baseRole) => {
+                            req.session.baseRole = baseRole;
+                            return res.json({ success: true, id: row2.id, username: row2.username, email: row2.email || '', full_name: row2.full_name || '', phone: row2.phone || '', role: row2.role || 'manager', baseRole, is_active: row2.is_active, last_login_at: row2.last_login_at, created_at: row2.created_at });
+                        });
+                        return;
                     }
-                    return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager' });
+                    return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager', baseRole: req.session.baseRole || req.session.role || 'manager' });
                 });
             } else {
-                return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager' });
+                return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager', baseRole: req.session.baseRole || req.session.role || 'manager' });
             }
         });
     } else {
         return res.status(401).json({ success: false, message: 'Not logged in.' });
     }
+});
+
+// Current user's effective permissions — used by the frontend to gate sections and buttons
+// without hard-coding role tier lists in every script. Returns role grants ± user overrides,
+// grouped by module for convenient can(mod, action) checks.
+router.get('/api/admin/me/permissions', requireAdmin, (req, res) => {
+    const adminId = req.session.adminId;
+    const roleKey = req.session.role || 'assistant';
+
+    getEffectivePermissions(adminId, roleKey)
+        .then(permsSet => {
+            const permissions = [...permsSet];
+            const modules = {};
+            for (const key of permsSet) {
+                const dot = key.indexOf('.');
+                if (dot < 0) continue;
+                const mod = key.slice(0, dot);
+                const action = key.slice(dot + 1);
+                if (!modules[mod]) modules[mod] = [];
+                modules[mod].push(action);
+            }
+            return res.json({
+                success: true,
+                role: roleKey,
+                baseRole: req.session.baseRole || roleKey,
+                permissions,
+                modules,
+            });
+        })
+        .catch(err => {
+            console.error('[me/permissions] Error:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to load permissions.' });
+        });
 });
 
 // Admin Forgot Password
@@ -156,7 +202,7 @@ router.post('/api/admin/forgot-password', (req, res) => {
 
         // 2. Generate secure token
         const rawToken = crypto.randomBytes(32).toString('hex');
-        
+
         // 3. Hash the token for database storage
         bcrypt.hash(rawToken, 10, (err, hash) => {
             if (err) {
@@ -178,7 +224,7 @@ router.post('/api/admin/forgot-password', (req, res) => {
                     // 5. Build and send the premium email with the RAW token
                     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
                     const resetLink = `${baseUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(email)}`;
-                    
+
                     // SECURITY-CRITICAL (HIGH): resetLink and the 1-hour expiry wording kept verbatim.
                     // Same dead class="btn-luxe"/class="text-muted" defect as the invite email.
                     const emailBody = emailComponents.renderSystemEmail({
@@ -211,7 +257,7 @@ router.post('/api/admin/forgot-password', (req, res) => {
     });
 });
 
-// Admin Verify and Reset Password 
+// Admin Verify and Reset Password
 router.post('/api/admin/reset-password', (req, res) => {
     const { email, token, newPassword } = req.body;
 
