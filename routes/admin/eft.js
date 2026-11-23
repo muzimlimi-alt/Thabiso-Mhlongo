@@ -4,7 +4,7 @@
 // Banking details are returned in full only to an administrator, and an account number is masked in every audit row and log line.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
 const ntf = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const core = require('../../lib/eft-core');
@@ -12,8 +12,8 @@ const eft = require('../../lib/eft');
 const approval = require('../../lib/eft-approval');
 const router = express.Router();
 
-const ADMIN_ONLY = requireRole(['administrator']);
-const FINANCE = requireRole(['administrator', 'manager']);
+const ADMIN_ONLY = requirePermission('payment-setup.manage');
+const FINANCE = requirePermission('payments.manage');
 const err500 = (res, e) => { console.error('[EFT admin]', e.message); return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' }); };
 
 // ---------------------------------------------------------------- switches and banking details (administrators)

@@ -2,11 +2,11 @@
 // "check PayFast now", and marking a finding dealt with. Administrators and managers, like the rest of Finance.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const reconcile = require('../../lib/payfast-reconcile');
 const router = express.Router();
 
-const FINANCE = requireRole(['administrator', 'manager']);
+const FINANCE = requirePermission('payments.manage');
 const err500 = (res, e) => { console.error('[PayFast safety net admin]', e.message); return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' }); };
 
 router.get('/api/admin/payfast/reconcile', requireAdmin, FINANCE, async (req, res) => {

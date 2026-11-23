@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { getTransactionRevenueByPeriod, getExpensesByPeriod } = require('../../database/repositories/finance.repository');
 const { agreedAmountSql, AMOUNT_BASIS_LABEL, revenueRowsSql } = require('../../lib/booking-amounts');
@@ -14,7 +14,7 @@ const router = express.Router();
 // One row per booking: the invoice shown is the booking's live (non-VOID) one, the most recent. The export used to join EVERY invoice the
 // booking ever had, so a regenerated invoice (the earlier ones are VOID) repeated the booking's Total Amount on a row per invoice and a
 // total over the file counted it several times. A booking with no live invoice reads "N/A".
-router.get('/api/admin/finance/export', exportRateLimiter, requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/finance/export', exportRateLimiter, requireAdmin, requirePermission('finance.export'), (req, res) => {
     const agreed = agreedAmountSql('b');
     const query = `
         SELECT
@@ -69,7 +69,7 @@ router.get('/api/admin/finance/export', exportRateLimiter, requireAdmin, require
 // 4. Financial Statistics (Admin)
 
 // P3-11: Profit & Loss endpoint — aggregates revenue (transactions) vs costs (expenses) by period.
-router.get('/api/admin/finance/pl', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/finance/pl', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const { period = 'month', date_from, date_to } = req.query;
     const groupFormat = period === 'year' ? '%Y' : (period === 'week' ? '%Y-W%W' : '%Y-%m');
     const fromFilter = date_from ? `AND date >= ${db.prepare ? '?' : JSON.stringify(date_from)}` : '';

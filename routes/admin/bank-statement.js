@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const {
     getBankStatementImportBatches, matchBankStatementLine,
     deleteBankStatementLine, deleteBankStatementBatch
@@ -23,7 +23,7 @@ const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 // lib/popia.js) so the insert loop is still atomic (one bad CSV can't leave a half-imported batch
 // behind) but now actually runs on the driver this app uses. Parsing/validation (line format,
 // header-row skip, the parts.length/amount checks) is unchanged from the original.
-router.post('/api/admin/bank-statement/import', requireAdmin, requireRole(['administrator', 'manager']), csvUpload.single('statement'), async (req, res) => {
+router.post('/api/admin/bank-statement/import', requireAdmin, requirePermission('finance.manage'), csvUpload.single('statement'), async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file received.' });
     const batchId = 'BS-' + Date.now();
     const importDate = new Date().toISOString().split('T')[0];
@@ -63,7 +63,7 @@ router.post('/api/admin/bank-statement/import', requireAdmin, requireRole(['admi
 });
 
 // GET /api/admin/bank-statement/lines — list imported lines with optional batch filter
-router.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/bank-statement/lines', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const { batch_id, unmatched_only } = req.query;
     let sql = `SELECT bsl.*, b.name AS matched_client
                FROM bank_statement_lines bsl
@@ -84,7 +84,7 @@ router.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['admini
 });
 
 // PATCH /api/admin/bank-statement/lines/:id/match — link a line to a booking
-router.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requirePermission('finance.manage'), (req, res) => {
     const { booking_id, transaction_id, match_note } = req.body;
     matchBankStatementLine(
         booking_id || null, transaction_id || null, (match_note || '').trim() || null, req.params.id,
@@ -96,7 +96,7 @@ router.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireR
 });
 
 // DELETE /api/admin/bank-statement/lines/:id — remove a single imported line
-router.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requirePermission('finance.delete'), (req, res) => {
     deleteBankStatementLine(req.params.id, function(err) {
         if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false });
         res.json({ success: true });
@@ -104,7 +104,7 @@ router.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole([
 });
 
 // DELETE /api/admin/bank-statement/batch/:batchId — delete an entire import batch
-router.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, requirePermission('finance.delete'), (req, res) => {
     deleteBankStatementBatch(req.params.batchId, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, deleted: this.changes });

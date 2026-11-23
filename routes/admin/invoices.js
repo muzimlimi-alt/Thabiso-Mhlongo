@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
 const { sendInvoiceEmail } = require('../../lib/invoice-email');
 const objectStorage = require('../../lib/object-storage');
@@ -12,7 +12,7 @@ const {
 const router = express.Router();
 
 // --- Invoice Actions ---
-router.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/invoices/:id/send', requireAdmin, requirePermission('invoices.manage'), (req, res) => {
     db.get(`SELECT i.*, b.id as booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
             FROM invoices i JOIN bookings b ON i.booking_id = b.id WHERE i.id = ?`, [req.params.id], async (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
@@ -38,7 +38,7 @@ router.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administ
 });
 
 // POST /api/admin/invoices/bulk-send-unsent — email all generated-but-unsent invoices
-router.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requirePermission('invoices.manage'), (req, res) => {
     db.all(
         `SELECT i.*, b.id AS booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
          FROM invoices i
@@ -64,7 +64,7 @@ router.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['
     );
 });
 
-router.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/invoices/:id/void', requireAdmin, requirePermission('invoices.delete'), (req, res) => {
     const { reason } = req.body;
     if (!reason || !reason.trim()) {
         return res.status(400).json({ error: 'Void reason is required.' });
@@ -98,7 +98,7 @@ router.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administ
 });
 
 // POST /api/admin/invoices/:id/mark-paid — quick-mark an invoice as PAID
-router.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requirePermission('invoices.approve'), (req, res) => {
     const adminUser = req.session.username || 'system';
     getInvoiceById(req.params.id, (err, inv) => {
         if (err || !inv) return res.status(404).json({ success: false, error: 'Invoice not found.' });
@@ -133,7 +133,7 @@ router.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['adm
 });
 
 // 3. Admin Invoice View
-router.get('/api/admin/invoices', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/invoices', requireAdmin, requirePermission('invoices.view'), (req, res) => {
     db.all(`SELECT i.*, b.name as client_name, b.event_name, b.date as event_date 
             FROM invoices i 
             JOIN bookings b ON i.booking_id = b.id 

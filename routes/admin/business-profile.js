@@ -9,14 +9,14 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const profile = require('../../lib/business-profile');
 const core = require('../../lib/business-profile-core');
 const pdfService = require('../../js/pdfService');
 const router = express.Router();
 
-const readers = [requireAdmin, requireRole(['administrator', 'manager'])];
-const writers = [requireAdmin, requireRole(['administrator'])];
+const readers = [requireAdmin, requirePermission('business-profile.view')];
+const writers = [requireAdmin, requirePermission('business-profile.manage')];
 
 router.get('/api/admin/business-profile', readers, async (req, res) => {
     try {

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { getTransactionRevenueTrend, getExpenseTrend, getPeriodRevenue, getPeriodExpenses, getTotalTransactionCount } = require('../../database/repositories/finance.repository');
 const { getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary } = require('../../database/repositories/invoices-quotations.repository');
 const { getOutstandingTotal, getBookingStatusCounts } = require('../../database/repositories/bookings.repository');
@@ -12,7 +12,7 @@ const router = express.Router();
 // GET /api/admin/financials/analytics
 // Every revenue figure here is money received MINUS refunds and chargebacks (they leave the account), never a manual adjustment, never a
 // payment flagged as a duplicate - the same rule as the dashboard revenue and the P&L (lib/booking-amounts.js).
-router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/financials/analytics', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const clientQuery = `
         SELECT c.id AS client_id, COALESCE(c.full_name, b.name) AS client_name, c.company_name,
                SUM(${receivedAmountSql('t')}) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
@@ -103,7 +103,7 @@ router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['admini
     });
 });
 
-router.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/financials/stats', requireAdmin, requirePermission('finance.view'), (req, res) => {
     // Support optional date range for period-scoped stats
     const { date_from, date_to } = req.query;
 

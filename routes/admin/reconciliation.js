@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, getTransactionProofPath } = require('../../database/repositories/finance.repository');
@@ -22,7 +22,7 @@ const AGREED = agreedAmountSql('b');
 // concern (POST /api/admin/transactions/manual is the real transactions domain, not yet moved).
 
 // GET /api/admin/reconciliation — full reconciliation matrix per booking
-router.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/reconciliation', requireAdmin, requirePermission('payments.view'), (req, res) => {
     const query = `
         SELECT
             b.id AS booking_id,
@@ -84,7 +84,7 @@ router.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrato
 });
 
 // GET /api/admin/reconciliation/:bookingId/transactions — full tx list for one booking (expandable row)
-router.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, requirePermission('payments.view'), (req, res) => {
     getCompletedTransactionsForReconciliation(
         req.params.bookingId, (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
@@ -94,7 +94,7 @@ router.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, re
 });
 
 // GET /api/admin/transactions/:id/proof — download a manually-recorded payment's proof-of-payment file
-router.get('/api/admin/transactions/:id/proof', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/transactions/:id/proof', requireAdmin, requirePermission('payments.view'), (req, res) => {
     getTransactionProofPath(req.params.id, async (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!row || !row.proof_of_payment_path) return res.status(404).json({ success: false, message: 'No proof of payment on file for this transaction.' });
@@ -113,7 +113,7 @@ router.get('/api/admin/transactions/:id/proof', requireAdmin, requireRole(['admi
 });
 
 // PATCH /api/admin/transactions/:id/reconcile — flag/unflag as duplicate (audit-safe, no delete)
-router.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requirePermission('payments.manage'), (req, res) => {
     const { is_duplicate, reconcile_note } = req.body;
     const flag = is_duplicate ? 1 : 0;
     const note = (reconcile_note || '').trim().substring(0, 255);
@@ -140,7 +140,7 @@ router.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(
 
 
 // GET /api/admin/reconciliation/export/csv — CSV export for accountant
-router.get('/api/admin/reconciliation/export/csv', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/reconciliation/export/csv', requireAdmin, requirePermission('finance.export'), (req, res) => {
     // A manual adjustment (credit / debit) changes what is owed, it is not money received - the screen's own row query already counts it as 0.
     // Summing t.amount here made it "Manual_Received" / "Effective_Received" and raised a false OverpaymentWarning in the accountant's file.
     const RECEIVED = `CASE WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END`;

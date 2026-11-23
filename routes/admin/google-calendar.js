@@ -6,14 +6,14 @@
 //   callback (NO session needed)      where Google sends the browser back - see the note on it below
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { adminRateLimiter } = require('../../middleware/rate-limiters');
 const { logAudit } = require('../../lib/audit-log');
 const db = require('../../database');
 const google = require('../../lib/google-config');
 const router = express.Router();
-const adminOnly = [requireAdmin, requireRole(['administrator'])];
-const managerUp = [requireAdmin, requireRole(['administrator', 'manager'])];
+const adminOnly = [requireAdmin, requirePermission('integrations.manage')];
+const managerUp = [requireAdmin, requirePermission('calendar.manage')];
 const CALLBACK_PATH = '/api/admin/google-calendar/callback';
 const fail = (res, e, what) => {
     console.error('google-calendar ' + what + ' failed:', e && e.message);

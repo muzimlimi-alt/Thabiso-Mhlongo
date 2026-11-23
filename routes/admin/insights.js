@@ -5,7 +5,7 @@
 // Answers are kept for a minute per range + role, so switching tabs or pressing Refresh twice does not re-run every query.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveRange } = require('../../lib/insights-range');
 const insights = require('../../lib/insights');
 const businessProfile = require('../../lib/business-profile');
@@ -46,7 +46,7 @@ router.get('/api/admin/insights/overview', requireAdmin, async (req, res) => {
     }
 });
 
-router.get('/api/admin/insights/finance', requireAdmin, requireRole(MONEY_ROLES), async (req, res) => {
+router.get('/api/admin/insights/finance', requireAdmin, requirePermission('finance.view'), async (req, res) => {
     const range = await rangeFor(req);
     if (range.error) return res.status(400).json({ success: false, error: range.error });
     try {

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { bookingConfig } = require('../../lib/booking-config');
 const smtpConfig = require('../../lib/smtp-config');
 const emailService = require('../../js/emailService');
@@ -153,7 +153,7 @@ router.get('/api/admin/audit_log', requireAdmin, (req, res) => {
 });
 
 // P3-16: Dedicated financial_audit_log endpoint (separate from main audit_log)
-router.get('/api/admin/financial_audit_log', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/financial_audit_log', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
     const dateFrom = req.query.date_from || null;
@@ -388,7 +388,7 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
 
 // Connection test: connect, negotiate STARTTLS and authenticate with the saved settings (plus any unsaved form values),
 // WITHOUT sending a message. A failed test is a normal result (HTTP 200, ok:false), not a request error.
-router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requirePermission('settings.manage'), async (req, res) => {
     try {
         const b = req.body || {};
         const v = smtpConfig.validateInput({
@@ -410,7 +410,7 @@ router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requireRol
 // Reading customer replies from the shared mailbox needs Microsoft Graph access, which SMTP sign-in does not give. This checks the SAVED
 // settings only (no form values, so no secret travels in the request): Graph sign-in, then the inbox folder's counters - never a message.
 // A failed check is a normal result (HTTP 200, ok:false), exactly like Test Connection.
-router.post('/api/admin/settings/m365/test-mailbox-read', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/settings/m365/test-mailbox-read', requireAdmin, requirePermission('settings.manage'), async (req, res) => {
     try {
         res.json({ success: true, ...(await m365Graph.diagnose()) });
     } catch (e) {

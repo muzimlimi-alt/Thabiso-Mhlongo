@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { uploadsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { insertExpense, getActiveExpenseById, softDeleteExpense, updateExpense } = require('../../database/repositories/finance.repository');
@@ -31,7 +31,7 @@ const uploadReceipt = multer({
 });
 
 // GET /api/admin/expenses — list with optional filters
-router.get('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/expenses', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const { booking_id, category, date_from, date_to, limit, offset } = req.query;
     let query = `SELECT e.*, b.event_name, b.name AS client_name
                  FROM expenses e
@@ -52,7 +52,7 @@ router.get('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'm
 });
 
 // POST /api/admin/expenses — create a new expense
-router.post('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/expenses', requireAdmin, requirePermission('finance.create'), (req, res) => {
     const { booking_id, category, amount, description, expense_date, receipt_url,
             start_odometer, end_odometer, rate_per_km,
             per_diem_days, per_diem_rate,
@@ -102,7 +102,7 @@ router.post('/api/admin/expenses', requireAdmin, requireRole(['administrator', '
 });
 
 // DELETE /api/admin/expenses/:id — delete (soft-delete) an expense
-router.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/expenses/:id', requireAdmin, requirePermission('finance.delete'), (req, res) => {
     const addedBy = req.session.username || 'system';
     getActiveExpenseById(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Expense not found.' });
@@ -126,7 +126,7 @@ router.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrat
 });
 
 // PUT /api/admin/expenses/:id — edit an existing expense
-router.put('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/expenses/:id', requireAdmin, requirePermission('finance.edit'), (req, res) => {
     const expenseId = req.params.id;
     const addedBy = req.session.username || 'system';
     getActiveExpenseById(expenseId, (err, existing) => {
@@ -177,7 +177,7 @@ router.put('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator'
 });
 
 // GET /api/admin/expenses/export — CSV download for all expenses (respects same filters as list)
-router.get('/api/admin/expenses/export', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/expenses/export', requireAdmin, requirePermission('finance.export'), (req, res) => {
     const { category, date_from, date_to, booking_id } = req.query;
     let sql = `SELECT e.*, b.event_name, b.name AS client_name
                FROM expenses e
@@ -216,7 +216,7 @@ router.get('/api/admin/expenses/export', requireAdmin, requireRole(['administrat
 });
 
 // POST /api/admin/expenses/upload-receipt — upload a receipt file for an expense
-router.post('/api/admin/expenses/upload-receipt', requireAdmin, requireRole(['administrator', 'manager']), uploadReceipt.single('receipt'), (req, res) => {
+router.post('/api/admin/expenses/upload-receipt', requireAdmin, requirePermission('finance.create'), uploadReceipt.single('receipt'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file received.' });
     const url = '/uploads/receipts/' + req.file.filename;
     res.json({ success: true, url, filename: req.file.originalname });

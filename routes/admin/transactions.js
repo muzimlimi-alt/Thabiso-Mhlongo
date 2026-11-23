@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
 const { generateInvoice } = require('../../lib/invoicing');
 const {
@@ -32,7 +32,7 @@ const router = express.Router();
 
 
 // POST /api/admin/transactions/manual — log a manual payment, refund, or adjustment
-router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/transactions/manual', requireAdmin, requirePermission('payments.create'), (req, res) => {
     const { booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, direction } = req.body;
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
         return res.status(400).json({ success: false, message: 'A valid positive amount is required.' });
