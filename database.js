@@ -3246,6 +3246,32 @@ function initializeDatabase() {
         // See lib/rbac-schema.js and lib/rbac-registry.js for details.
         require('./lib/rbac-schema').apply(db);
 
+        // RBAC permission seed corrections (version 124): fix roles seeded with wrong grants in migration 123.
+        // - site-content.delete, business-profile.manage/edit: were granted to manager but are admin-only.
+        // - services.manage: was granted to assistant but is manager+ only (rate-card endpoint).
+        // - email-banners.*: was missing from manager entirely (all banner routes were manager+).
+        db.get('SELECT 1 FROM schema_migrations WHERE version = 124', [], (err, row) => {
+            if (row) return;
+            db.serialize(() => {
+                db.run(`DELETE FROM rbac_role_permissions
+                        WHERE role_id = (SELECT id FROM rbac_roles WHERE key = 'manager')
+                        AND permission_id IN (
+                            SELECT id FROM rbac_permissions
+                            WHERE key IN ('site-content.delete', 'business-profile.manage', 'business-profile.edit')
+                        )`);
+                db.run(`DELETE FROM rbac_role_permissions
+                        WHERE role_id = (SELECT id FROM rbac_roles WHERE key = 'assistant')
+                        AND permission_id = (SELECT id FROM rbac_permissions WHERE key = 'services.manage')`);
+                db.run(`INSERT OR IGNORE INTO rbac_role_permissions (role_id, permission_id)
+                        SELECT r.id, p.id
+                        FROM rbac_roles r, rbac_permissions p
+                        WHERE r.key = 'manager'
+                        AND p.key IN ('email-banners.view', 'email-banners.create', 'email-banners.edit', 'email-banners.manage')`);
+                db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (124, 'rbac_seed_corrections_batch1')`);
+                console.log('[migration 124] RBAC permission seed corrections applied.');
+            });
+        });
+
         console.log('Database tables initialized successfully.');
     });
 }

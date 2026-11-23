@@ -15,6 +15,15 @@ const { resolveActor } = require('../../lib/actor');
 const { logAudit } = require('../../lib/audit-log');
 const router = express.Router();
 
+// Validate a role key against rbac_roles (covers custom roles); falls back to `fallback` on miss.
+function resolveRoleKey(key, fallback, cb) {
+    if (!key) return cb(null, fallback);
+    if (VALID_ADMIN_ROLES.includes(key)) return cb(null, key); // fast path for system roles
+    db.get('SELECT key FROM rbac_roles WHERE key = ? AND status = ?', [key, 'active'], (err, row) => {
+        cb(null, row ? row.key : fallback);
+    });
+}
+
 // --- Users (Admins) ---
 router.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
     getAdminsListWithCreatorModifier((err, rows) => {
@@ -49,10 +58,10 @@ router.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (r
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
         return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
     }
-    const targetRole = VALID_ADMIN_ROLES.includes(role) ? role : 'manager';
     const cleanName = (full_name || '').trim() || null;
     const cleanPhone = (phone || '').trim() || null;
 
+    resolveRoleKey(role, 'manager', (_, targetRole) => {
     // No admin-set password: the new user sets their own via the invitation link.
     // Insert an unusable random password so the row is well-formed but nobody can sign in until they accept the invite.
     const placeholderPassword = crypto.randomBytes(24).toString('hex');
@@ -91,7 +100,8 @@ router.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (r
                 });
             }
         );
-    });
+    }); // bcrypt.hash
+    }); // resolveRoleKey
 });
 
 // Resend the set-password invitation to an existing (typically pending) user.
@@ -142,9 +152,9 @@ router.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
             return res.status(400).json({ success: false, message: 'Phone number is required.' });
         }
 
-        // Default role/status to the existing values when not explicitly provided, so a bare
-        // profile/password save never demotes or deactivates the account.
-        const targetRole = VALID_ADMIN_ROLES.includes(role) ? role : existing.role;
+        // Validate role against rbac_roles (covers custom roles); fall back to existing role on miss.
+        resolveRoleKey(role, existing.role, (_, targetRole) => {
+
         const targetIsActive = (is_active === undefined || is_active === null)
             ? existing.is_active
             : ((is_active === false || is_active === 0) ? 0 : 1);
@@ -233,6 +243,7 @@ router.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
                 }
             );
         }
+        }); // resolveRoleKey
     });
 });
 

@@ -437,6 +437,11 @@ $(function() {
             if (a.rotate === false) $('.tm-announcement').addClass('no-rotate'); else $('.tm-announcement').removeClass('no-rotate');
             // scroll speed 1..10 (5 = the original 18 s a pass): the time one pass takes is 90 / speed seconds
             if (a.speed >= 1 && a.speed <= 10) $('.tm-announcement .tm-announce-marquee').css('animation-duration', Math.round(90 / a.speed) + 's');
+            // Cache which loading screen the admin picked, for the #tmPreloaderBoot head script on the next load (js/tm-preloader.js).
+            // Nothing on this page changes now - the loader for THIS load has already been built and is on its way out.
+            if (data.preloader && data.preloader.style) {
+                try { localStorage.setItem('tm_preloader', JSON.stringify({ style: data.preloader.style, field: data.preloader.field || 'onyx' })); } catch (e) {}
+            }
             if (data.hero_tagline && data.hero_tagline.trim()) $('.tm-hero__tagline').text(data.hero_tagline);
             if (data.hero_subtitle && data.hero_subtitle.trim()) $('.tm-hero__subtitle').html(data.hero_subtitle);
             var s = data.services || {};

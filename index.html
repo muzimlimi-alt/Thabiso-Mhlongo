@@ -107,6 +107,31 @@
 	})();
 	</script>
 
+	<!-- Which loading screen to show (js/tm-preloader.js has both designs and the whole story). The server writes the admin's choice in
+	     place of the token below (lib/homepage-render.js), so the FIRST paint is already the right one and a change the admin saves is
+	     live for every visitor on their very next page view - nothing is fetched and no older copy in the browser can win.
+	     The server's answer is also written straight back to this browser's cache, so the fallback below stays current: it is only
+	     reached when the page was served as a plain file or the database was too slow, and then the last answer this browser was given
+	     is a far better guess than the built-in default.
+	     When the portrait design is on, its picture is preloaded here so it is decoded by the time the loader is built - the loader
+	     never waits for it either way. -->
+	<script id="tmPreloaderBoot">
+	(function () {
+		try {
+			var v = /*TM_PRELOADER*/null;
+			if (v && typeof v === 'object') { try { localStorage.setItem('tm_preloader', JSON.stringify(v)); } catch (e) {} }
+			else { try { v = JSON.parse(localStorage.getItem('tm_preloader') || '{}'); } catch (e) { v = {}; } }
+			window.__tmPreloaderStyle = v && v.style;
+			window.__tmPreloaderField = v && v.field;
+			if (window.__tmPreloaderStyle === 'portrait') {
+				var l = document.createElement('link');
+				l.rel = 'preload'; l.as = 'image'; l.href = 'images/preloader/portrait-mark.webp?v=1'; l.type = 'image/webp';
+				document.head.appendChild(l);
+			}
+		} catch (e) {}
+	})();
+	</script>
+
 </head>
 
 
@@ -793,13 +818,14 @@
 					<li><a href="/refund-policy" data-toggle="modal" data-target="#refundModal">Refund &amp; Cancellation Policy</a></li>
 					<li><a href="#" id="openCookieSettings">Cookie Settings</a></li>
 					<li><a href="#" data-toggle="modal" data-target="#popiaErasureModal">POPIA Data Erasure</a></li>
-					<li><a href="admin.html">Admin Portal</a></li>
+					<!-- <li><a href="admin.html">Admin Portal</a></li> -->
 				</ul>
 			</div>
 		</div>
 		<div class="tm-footer__bottom">
 			<span>&copy; <span id="current-year">2026</span> Thabiso Mhlongo Management. All rights reserved.</span>
 			<span style="opacity:0.6; font-size:10px;">South African POPIA Compliant Platform.</span>
+			<span style="opacity:0.6; font-size:10px;"><a href="admin.html" >Admin Portal</a></span>
 			<span>Developed by <a href="https://www.culchar.com" target="_blank" rel="noopener noreferrer" style="color:var(--y-base); text-decoration:none;">Culchar.com</a></span>
 		</div>
 	</div>

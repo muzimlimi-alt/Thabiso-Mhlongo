@@ -33,7 +33,7 @@
         financeAdmin:      { label: 'Finance',          title: 'Financial Ledger',          group: 'Revenue',      access: OPS },
         servicesAdmin:     { label: 'Services',         title: 'Services Catalogue',        group: 'Revenue',      access: ALL },
         paymentSetupAdmin: { label: 'Payment Setup',    title: 'Payment Setup',             group: 'Revenue',      access: ADMIN },
-        inquiriesAdmin:    { label: 'Inquiries',        title: 'Inquiries',                 group: 'Email',        access: ALL },
+        inquiriesAdmin:    { label: 'Mailbox',           title: 'Mailbox',                   group: 'Email',        access: ALL },
         newsletterAdmin:   { label: 'Newsletter',       title: 'Newsletter',                group: 'Outreach',     access: OPS },
         socialAdmin:       { label: 'Social Media',     title: 'Social Media',              group: 'Outreach',     access: ALL },
         contactAdmin:      { label: 'Contact Details',  title: 'Contact',                   group: 'Outreach',     access: ALL },

@@ -3,8 +3,7 @@
 // lib/faq.js; this file only sequences the writes. Re-ordering rewrites a category's positions in one transaction, so two quick clicks cannot
 // leave two questions on the same position.
 const express = require('express');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { dbRun, dbGet, dbAll } = require('../../lib/db-helpers');
 const { withDbTransaction } = require('../../lib/db-transaction');
 const { logAudit } = require('../../lib/audit-log');
@@ -21,12 +20,12 @@ async function lastUpdated(req) {
 const fail = (res, e, what) => { console.error(`faq ${what} failed:`, e && e.message); res.status(500).json({ success: false, message: 'The FAQ could not be saved. Please try again.' }); };
 const invalid = (res, errors) => res.status(400).json({ success: false, errors, message: Object.values(errors)[0] });
 
-router.get('/api/admin/faqs', requireAdmin, async (req, res) => {
+router.get('/api/admin/faqs', requirePermission('site-content.view'), async (req, res) => {
     try { res.json({ success: true, ...(await faq.getAdminFaqView()) }); }
     catch (e) { fail(res, e, 'list'); }
 });
 
-router.post('/api/admin/faqs', requireAdmin, async (req, res) => {
+router.post('/api/admin/faqs', requirePermission('site-content.create'), async (req, res) => {
     try {
         const { clean, errors } = faq.prepareFaq(req.body || {});
         if (Object.keys(errors).length) return invalid(res, errors);
@@ -42,7 +41,7 @@ router.post('/api/admin/faqs', requireAdmin, async (req, res) => {
     }
 });
 
-router.put('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
+router.put('/api/admin/faqs/:id', requirePermission('site-content.edit'), async (req, res) => {
     try {
         const id = parseId(req.params.id);
         const before = id ? await dbGet('SELECT * FROM faqs WHERE id = ?', [id]) : null;
@@ -63,7 +62,7 @@ router.put('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
 });
 
 // Move one place up or down within its category (the website lists categories in a fixed order, then this order).
-router.post('/api/admin/faqs/:id/move', requireAdmin, async (req, res) => {
+router.post('/api/admin/faqs/:id/move', requirePermission('site-content.edit'), async (req, res) => {
     try {
         const id = parseId(req.params.id);
         const dir = req.body && req.body.direction;
@@ -89,7 +88,7 @@ router.post('/api/admin/faqs/:id/move', requireAdmin, async (req, res) => {
     } catch (e) { fail(res, e, 'move'); }
 });
 
-router.delete('/api/admin/faqs/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.delete('/api/admin/faqs/:id', requirePermission('site-content.delete'), async (req, res) => {
     try {
         const id = parseId(req.params.id);
         const before = id ? await dbGet('SELECT * FROM faqs WHERE id = ?', [id]) : null;

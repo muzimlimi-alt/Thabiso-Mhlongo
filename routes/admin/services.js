@@ -1,6 +1,5 @@
 const express = require('express');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
 const { getServiceDraftQuoteUsage, countQuoteLineItemsForService } = require('../../database/repositories/invoices-quotations.repository');
 const { countBookingLineItemsForService } = require('../../database/repositories/bookings.repository');
 const {
@@ -10,7 +9,7 @@ const {
 const { getVatRate } = require('../../lib/document-totals');
 const businessProfile = require('../../lib/business-profile');
 const { FULL_TAX_INVOICE_OVER } = require('../../lib/business-profile-core');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { getSettingsByKeys, upsertSetting } = require('../../database/repositories/settings.repository');
 const moment = require('moment-timezone');
 const router = express.Router();
@@ -37,7 +36,7 @@ const pricingSnapshot = (r) => ({
 });
 
 // --- Services CRUD ---
-router.get('/api/admin/services', requireAdmin, (req, res) => {
+router.get('/api/admin/services', requirePermission('services.view'), (req, res) => {
     const activeOnly = req.query.active_only === '1';
     const includeDeleted = req.query.include_deleted === '1';
     let query = "SELECT * FROM services WHERE COALESCE(is_deleted, 0) = 0";
@@ -57,7 +56,7 @@ router.get('/api/admin/services', requireAdmin, (req, res) => {
 });
 
 // Vocabulary + rate-card validity for the admin screens (declared before the /:id routes).
-router.get('/api/admin/services/meta', requireAdmin, (req, res) => {
+router.get('/api/admin/services/meta', requirePermission('services.view'), (req, res) => {
     getSettingsByKeys(RATE_CARD_KEYS, async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({
@@ -79,7 +78,7 @@ router.get('/api/admin/services/meta', requireAdmin, (req, res) => {
 
 // The date the published rates are valid until. It is printed on every quotation and quotation email (and the
 // sentence disappears by itself once the date has passed), so the owner needs a way to move it when a new card arrives.
-router.put('/api/admin/services/rate-card', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/services/rate-card', requirePermission('services.manage'), (req, res) => {
     const validUntil = String((req.body || {}).valid_until || '').trim();
     if (!moment(validUntil, 'YYYY-MM-DD', true).isValid()) {
         return res.status(400).json({ error: 'Enter a real date for "Rates valid until".' });
@@ -97,7 +96,7 @@ router.put('/api/admin/services/rate-card', requireAdmin, requireRole(['administ
     });
 });
 
-router.post('/api/admin/services', requireAdmin, (req, res) => {
+router.post('/api/admin/services', requirePermission('services.create'), (req, res) => {
     const {
         name, description, category, is_taxable, is_active,
         display_unit, min_quantity, max_quantity,
@@ -170,7 +169,7 @@ router.post('/api/admin/services', requireAdmin, (req, res) => {
     }); // end db.get duplicate check
 });
 
-router.put('/api/admin/services/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/services/:id', requirePermission('services.edit'), (req, res) => {
     const {
         name, description, category, is_taxable, is_active,
         display_unit, min_quantity, max_quantity,
@@ -258,7 +257,7 @@ router.put('/api/admin/services/:id', requireAdmin, (req, res) => {
     }); // end db.get existing row
 });
 
-router.get('/api/admin/services/:id/usage', requireAdmin, (req, res) => {
+router.get('/api/admin/services/:id/usage', requirePermission('services.view'), (req, res) => {
     const serviceId = req.params.id;
     getServiceDraftQuoteUsage(serviceId, (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -266,7 +265,7 @@ router.get('/api/admin/services/:id/usage', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/services/:id', requireAdmin, (req, res) => {
+router.delete('/api/admin/services/:id', requirePermission('services.delete'), (req, res) => {
     const force = req.query.force === '1';
     const adminUser = req.session.username || 'system';
     if (!force) {

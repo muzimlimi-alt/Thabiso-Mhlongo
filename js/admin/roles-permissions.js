@@ -50,6 +50,7 @@
             html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-perms" data-role-id="' + r.id + '"><i class="fa-solid fa-sliders"></i> Permissions</button>';
             if (!r.is_system) {
                 html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-role" data-role-id="' + r.id + '"><i class="fa-solid fa-pen"></i> Edit</button>';
+                html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-delete-role" data-role-id="' + r.id + '" data-role-name="' + esc(r.name) + '" style="color:var(--atl-clay);"><i class="fa-solid fa-trash"></i> Delete</button>';
             }
             html += '</div></div>';
             return html;
@@ -219,11 +220,27 @@
 
         api('GET', '/api/admin/permissions').then(function (mx) {
             if (!mx.success) return;
+            // mx.modules: [{ key, label, actions }]; mx.permissions: flat [{key, module, action, label, is_sensitive}]
+            var allPerms = mx.permissions || [];
             var html = '';
             (mx.modules || []).forEach(function (mod) {
+                var modPerms = allPerms.filter(function (p) { return p.module === mod.key; });
+                if (!modPerms.length) return;
+                var checkedCount = modPerms.filter(function (p) { return grantedKeys[p.key]; }).length;
+                var allSelected = checkedCount === modPerms.length;
+                var someSelected = checkedCount > 0 && !allSelected;
                 html += '<div class="rbac-perm-module">';
-                html += '<h5 class="rbac-perm-module__title">' + esc(mod.module).replace(/-/g, ' ') + '</h5>';
-                mod.permissions.forEach(function (p) {
+                html += '<div class="rbac-perm-module__hd">';
+                html += '<h5 class="rbac-perm-module__title">' + esc(mod.label || mod.key).replace(/-/g, ' ') + '</h5>';
+                if (!isProtected) {
+                    html += '<label class="rbac-perm-select-all-label">' +
+                        '<input type="checkbox" class="rbac-perm-select-all"' +
+                        (allSelected ? ' checked' : '') +
+                        (someSelected ? ' data-indeterminate="true"' : '') +
+                        '> <span>All</span></label>';
+                }
+                html += '</div>';
+                modPerms.forEach(function (p) {
                     var checked = grantedKeys[p.key] ? ' checked' : '';
                     var disabled = isProtected ? ' disabled' : '';
                     html += '<div class="rbac-perm-row">';
@@ -233,7 +250,14 @@
                 });
                 html += '</div>';
             });
-            container.innerHTML = html;
+            container.innerHTML = html || '<p class="ntf-empty">No permissions found.</p>';
+            // indeterminate must be set via JS, not HTML attribute
+            container.querySelectorAll('.rbac-perm-select-all[data-indeterminate="true"]').forEach(function (cb) {
+                cb.indeterminate = true;
+            });
+        }).catch(function (e) {
+            console.error('[rbac] renderPermEditor fetch failed:', e);
+            container.innerHTML = '<p class="ntf-empty" style="color:var(--atl-clay);">Failed to load permissions.</p>';
         });
     }
 
@@ -261,9 +285,52 @@
         $(document).on('click', '#rbacCreateRoleBtn', function () { openRoleDrawer(null); });
         $(document).on('click', '.rbac-edit-role', function () { openRoleDrawer(Number($(this).attr('data-role-id'))); });
         $(document).on('click', '.rbac-edit-perms', function () { openPermDrawer(Number($(this).attr('data-role-id'))); });
+        $(document).on('click', '.rbac-delete-role', async function () {
+            var roleId = Number($(this).attr('data-role-id'));
+            var roleName = $(this).attr('data-role-name');
+            var confirmed = await window.notificationService.showConfirm({
+                message: 'Delete role “' + roleName + '”? This cannot be undone. Any users assigned this role must be reassigned first.',
+                isDestructive: true
+            });
+            if (!confirmed) return;
+            api('DELETE', '/api/admin/roles/' + roleId).then(function (d) {
+                if (d.success) {
+                    window.notificationService.showSuccess('Role “' + roleName + '” deleted.');
+                    loadRoles();
+                    loadMatrix();
+                } else {
+                    window.notificationService.showError(d.message || 'Could not delete role.');
+                }
+            }).catch(function () { window.notificationService.showError('Request failed. Please try again.'); });
+        });
         $(document).on('click', '#rbacRoleSaveBtn', saveRole);
         $(document).on('click', '#rbacPermSaveBtn', savePermissions);
         $(document).on('click', '#rbacAuditRefresh', loadAuditLog);
+
+        // Select-all toggle: check/uncheck every perm in the module
+        $(document).on('change', '#rbacPermGrid .rbac-perm-select-all', function () {
+            var $module = $(this).closest('.rbac-perm-module');
+            var checked = this.checked;
+            this.indeterminate = false;
+            $module.find('input[data-perm-key]:not(:disabled)').prop('checked', checked);
+        });
+
+        // Individual perm change: sync the module's select-all state
+        $(document).on('change', '#rbacPermGrid input[data-perm-key]', function () {
+            var $module = $(this).closest('.rbac-perm-module');
+            var $selectAll = $module.find('.rbac-perm-select-all');
+            if (!$selectAll.length) return;
+            var $perms = $module.find('input[data-perm-key]:not(:disabled)');
+            var total = $perms.length;
+            var checked = $perms.filter(':checked').length;
+            if (checked === 0) {
+                $selectAll.prop('checked', false).prop('indeterminate', false);
+            } else if (checked === total) {
+                $selectAll.prop('checked', true).prop('indeterminate', false);
+            } else {
+                $selectAll.prop('checked', false).prop('indeterminate', true);
+            }
+        });
     });
 
     /* ================================================================

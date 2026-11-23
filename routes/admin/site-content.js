@@ -1,16 +1,16 @@
 const express = require('express');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { getAllBookingsForMigration, updateBookingClientVenue } = require('../../database/repositories/bookings.repository');
 const { upsertSetting } = require('../../database/repositories/settings.repository');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { unescapeHtml, sanitizeAboutHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
+const { PRELOADER_STYLES, PRELOADER_FIELDS } = require('../../lib/homepage-content');
 const { resolveActor } = require('../../lib/actor');
 const { logAudit } = require('../../lib/audit-log');
 const router = express.Router();
 
-router.post('/api/admin/migrate', requireAdmin, async (req, res) => {
+router.post('/api/admin/migrate', requirePermission('settings.manage'), async (req, res) => {
     try {
         getAllBookingsForMigration((err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
@@ -49,7 +49,7 @@ router.post('/api/admin/migrate', requireAdmin, async (req, res) => {
 });
 
 // ─── Branding ───────────────────────────────────────────────────────────────
-router.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.put('/api/admin/branding', requirePermission('branding.edit'), (req, res) => {
     const { settings } = req.body;
     if (!settings || typeof settings !== 'object')
         return res.status(400).json({ error: 'settings object required.' });
@@ -70,7 +70,7 @@ router.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), 
 });
 
 // --- Venues list for admin dropdowns ---
-router.get('/api/admin/venues', requireAdmin, (req, res) => {
+router.get('/api/admin/venues', requirePermission('bookings.view'), (req, res) => {
     db.all(`SELECT v.id, v.name, v.city, v.state, v.address, v.capacity,
                    v.contact_name, v.contact_phone, v.green_room_notes,
                    (SELECT COUNT(*) FROM bookings b WHERE b.venue_id = v.id) AS booking_count
@@ -81,7 +81,7 @@ router.get('/api/admin/venues', requireAdmin, (req, res) => {
 });
 
 // Admin: list reviews
-router.get('/api/admin/reviews', requireAdmin, (req, res) => {
+router.get('/api/admin/reviews', requirePermission('site-content.view'), (req, res) => {
     db.all(
         `SELECT r.*, b.event_name, b.event_type, b.date AS event_date
          FROM service_reviews r
@@ -92,7 +92,7 @@ router.get('/api/admin/reviews', requireAdmin, (req, res) => {
     );
 });
 
-router.put('/api/admin/manager', requireAdmin, (req, res) => {
+router.put('/api/admin/manager', requirePermission('site-content.edit'), (req, res) => {
     const { name, cell_number, whatsapp_number, email, whatsapp_link } = req.body;
     const adminId = req.session.adminId;
 
@@ -131,14 +131,14 @@ router.put('/api/admin/manager', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/manager', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/manager', requirePermission('site-content.delete'), (req, res) => {
     db.run("DELETE FROM manager_details", [], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Manager details cleared successfully.' });
     });
 });
 
-router.post('/api/admin/contact_info', requireAdmin, (req, res) => {
+router.post('/api/admin/contact_info', requirePermission('contact.edit'), (req, res) => {
     // Note: The frontend sends { data: { email, quote, sig } }
     const { email, quote, sig: signature } = req.body.data || {};
     const adminId = req.session.adminId;
@@ -177,7 +177,7 @@ router.post('/api/admin/contact_info', requireAdmin, (req, res) => {
     });
 });
 
-router.get('/api/admin/about-me', requireAdmin, (req, res) => {
+router.get('/api/admin/about-me', requirePermission('site-content.view'), (req, res) => {
     db.get("SELECT * FROM about_me WHERE id = 1", (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (row) {
@@ -189,7 +189,7 @@ router.get('/api/admin/about-me', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/about-me', requireAdmin, (req, res) => {
+router.post('/api/admin/about-me', requirePermission('site-content.edit'), (req, res) => {
     const { image_path, paragraph1, paragraph2, paragraph3 } = req.body;
     const username = req.session.username || String(req.session.adminId || 'admin');
     const p1 = sanitizeAboutHtml(paragraph1);
@@ -224,7 +224,7 @@ router.post('/api/admin/about-me', requireAdmin, (req, res) => {
     });
 });
 
-router.put('/api/admin/site-content', requireAdmin, (req, res) => {
+router.put('/api/admin/site-content', requirePermission('site-content.manage'), (req, res) => {
     const b = req.body || {};
     const updates = {};
     if (typeof b.announcement_text === 'string') updates.announcement_text = sanitizeAboutHtml(b.announcement_text).slice(0, 300);
@@ -254,6 +254,10 @@ router.put('/api/admin/site-content', requireAdmin, (req, res) => {
         updates.services_items = JSON.stringify(clean);
     }
     if (typeof b.hero_tagline === 'string') updates.hero_tagline = b.hero_tagline.replace(/<[^>]*>/g, '').slice(0, 160);
+    // Which loading screen the public site and this admin show (js/tm-preloader.js). Only the two known designs and the two known
+    // fields are ever stored, so nothing can reach the page that the loader would not recognise.
+    if (typeof b.preloader_style === 'string' && PRELOADER_STYLES.indexOf(b.preloader_style) !== -1) updates.preloader_style = b.preloader_style;
+    if (typeof b.preloader_field === 'string' && PRELOADER_FIELDS.indexOf(b.preloader_field) !== -1) updates.preloader_field = b.preloader_field;
     if (Array.isArray(b.features_items)) {
         const cf = b.features_items.slice(0, 12).map(it => ({
             title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 60),

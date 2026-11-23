@@ -7,8 +7,7 @@
 // guards happen back to back, so a double-clicked Save cannot record the same award twice (the unique
 // index in database.js is the backstop), and no write can land inside another route's open transaction.
 const express = require('express');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { dbRun, dbGet, dbAll } = require('../../lib/db-helpers');
 const { withDbTransaction } = require('../../lib/db-transaction');
 const { logAudit } = require('../../lib/audit-log');
@@ -63,7 +62,7 @@ const failed = (status, message, extra) => ({ status, body: Object.assign({ succ
 // Admin: every accolade, published or not, in the SAME order as the website, annotated with what the
 // website does with each (is_public / public_position) — built by lib/accolades.js, which the public
 // API also uses, so the two views cannot drift apart.
-router.get('/api/admin/accolades', requireAdmin, async (req, res) => {
+router.get('/api/admin/accolades', requirePermission('site-content.view'), async (req, res) => {
     try {
         res.set('Cache-Control', 'no-store');
         res.json(await getAdminAccoladesView());
@@ -73,7 +72,7 @@ router.get('/api/admin/accolades', requireAdmin, async (req, res) => {
     }
 });
 
-router.post('/api/admin/accolades', requireAdmin, async (req, res) => {
+router.post('/api/admin/accolades', requirePermission('site-content.create'), async (req, res) => {
     const prepared = await prepareAccolade(req.body, null);
     if (prepared.error) return res.status(400).json({ success: false, message: prepared.error, field: prepared.field });
     const v = prepared.values;
@@ -108,7 +107,7 @@ router.post('/api/admin/accolades', requireAdmin, async (req, res) => {
 
 // Registered before /:id so "reorder" is never read as an id. The body lists EVERY accolade id in the
 // new order (the admin always sends the full list); a stale list is refused rather than half-applied.
-router.put('/api/admin/accolades/reorder', requireAdmin, async (req, res) => {
+router.put('/api/admin/accolades/reorder', requirePermission('site-content.edit'), async (req, res) => {
     const ids = parseIdList(req.body && req.body.order, 100000);
     if (!ids) return res.status(400).json({ success: false, message: 'order must list every accolade id exactly once.' });
     try {
@@ -148,8 +147,8 @@ router.put('/api/admin/accolades/reorder', requireAdmin, async (req, res) => {
 
 // Publish / unpublish / feature / unfeature / delete several accolades at once, all-or-nothing. Delete
 // goes through the same administrator-only gate as the single DELETE route below.
-router.post('/api/admin/accolades/bulk', requireAdmin,
-    (req, res, next) => (req.body && req.body.action === 'delete' ? requireRole(['administrator'])(req, res, next) : next()),
+router.post('/api/admin/accolades/bulk', requirePermission('site-content.manage'),
+    (req, res, next) => (req.body && req.body.action === 'delete' ? requirePermission('site-content.delete')(req, res, next) : next()),
     async (req, res) => {
         const action = req.body && req.body.action;
         // Own keys only: "constructor" / "__proto__" must not resolve to something inherited.
@@ -206,7 +205,7 @@ router.post('/api/admin/accolades/bulk', requireAdmin,
     });
 
 // Partial updates are fine: lib/accolades.js validates the record the change would PRODUCE.
-router.put('/api/admin/accolades/:id', requireAdmin, async (req, res) => {
+router.put('/api/admin/accolades/:id', requirePermission('site-content.edit'), async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).json({ success: false, message: 'Accolade not found.' });
     try {
@@ -244,7 +243,7 @@ router.put('/api/admin/accolades/:id', requireAdmin, async (req, res) => {
 
 // Permanent delete — administrator only, like every other content section. To take an accolade off
 // the website without losing it, set it Inactive instead. The full record stays in audit_log.
-router.delete('/api/admin/accolades/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.delete('/api/admin/accolades/:id', requirePermission('site-content.delete'), async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).json({ success: false, message: 'Accolade not found.' });
     try {

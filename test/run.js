@@ -20,7 +20,18 @@ async function main() {
         for (const f of files) {
             console.log(`── ${f} ──`);
             const suite = require(path.join(__dirname, f));
-            await suite({ check, ...support });
+            // A few files (ozow.test.js) are written against node:test and run themselves on require, exporting nothing. Requiring one
+            // has already run it by this point; calling it would throw and, before this guard, took the whole run down with it - every
+            // file after it in the alphabet was silently never run.
+            if (typeof suite !== 'function') { console.log('  (self-running node:test file - results above)'); continue; }
+            // One file that throws must not take the run down with it: a check that reads, say, rows[0].status after an earlier check
+            // already failed and left rows empty used to abort everything, so every file after it in the alphabet went unreported and
+            // the run printed server logs instead of a pass count. Record it as a failure of that file and carry on.
+            try {
+                await suite({ check, ...support });
+            } catch (e) {
+                check(`${f} threw part-way through (the checks after the throw did not run)`, false, (e && e.stack) || String(e));
+            }
             console.log('');
         }
     } finally {

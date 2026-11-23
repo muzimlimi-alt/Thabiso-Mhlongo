@@ -2,21 +2,20 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
 const { PROJECT_ROOT } = require('../../lib/runtime-paths');
 const { refreshEmbed } = require('../../lib/social-stats');
 const router = express.Router();
 
-router.get('/api/admin/home-slider', requireAdmin, (req, res) => {
+router.get('/api/admin/home-slider', requirePermission('site-content.view'), (req, res) => {
     db.all("SELECT * FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-router.post('/api/admin/home-slider', requireAdmin, (req, res) => {
+router.post('/api/admin/home-slider', requirePermission('site-content.create'), (req, res) => {
     const { url, alt, file_name, file_size } = req.body;
     if (!url) return res.status(400).json({ success: false, message: 'URL is required' });
     const uploader_name = req.session.username || 'admin';
@@ -29,7 +28,7 @@ router.post('/api/admin/home-slider', requireAdmin, (req, res) => {
         });
 });
 
-router.delete('/api/admin/home-slider/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/home-slider/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM home_slider WHERE id = ?", [req.params.id], function(err) {
             if (err) return res.status(500).json({ error: err.message });
@@ -39,7 +38,7 @@ router.delete('/api/admin/home-slider/:id', requireAdmin, requireRole(['administ
     });
 });
 
-router.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
+router.put('/api/admin/home-slider/reorder', requirePermission('site-content.edit'), (req, res) => {
     const { order } = req.body; // Array of IDs in new order
     db.serialize(() => {
         const stmt = db.prepare("UPDATE home_slider SET display_order = ? WHERE id = ?");
@@ -58,7 +57,7 @@ router.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
 });
 
 // NB: registered AFTER /home-slider/reorder so "reorder" is not captured as :id.
-router.put('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/home-slider/:id', requirePermission('site-content.edit'), (req, res) => {
     const { alt, url, file_name } = req.body;
     db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
         const done = function(err) {
@@ -78,14 +77,14 @@ router.put('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.get('/api/admin/social_links', requireAdmin, (req, res) => {
+router.get('/api/admin/social_links', requirePermission('social.view'), (req, res) => {
     db.all("SELECT * FROM social_links ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-router.post('/api/admin/social_links', requireAdmin, (req, res) => {
+router.post('/api/admin/social_links', requirePermission('social.create'), (req, res) => {
     const { id, platform_name, platform_url, icon_class, display_order, is_active } = req.body;
     const adminId = req.session.adminId;
     const ip = req.ip;
@@ -112,14 +111,14 @@ router.post('/api/admin/social_links', requireAdmin, (req, res) => {
     }
 });
 
-router.delete('/api/admin/social_links/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/social_links/:id', requirePermission('social.delete'), (req, res) => {
     db.run("DELETE FROM social_links WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social link deleted successfully.' });
     });
 });
 
-router.get('/api/admin/social_embeds', requireAdmin, (req, res) => {
+router.get('/api/admin/social_embeds', requirePermission('social.view'), (req, res) => {
     db.all("SELECT * FROM social_embeds ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
@@ -136,7 +135,7 @@ function refreshStatsThenRespond(embedId, respond) {
     });
 }
 
-router.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
+router.post('/api/admin/social_embeds', requirePermission('social.create'), (req, res) => {
     const { id, platform_name, embed_code, platform_api_key, metadata, display_order, is_active } = req.body;
     const adminId = req.session.adminId;
     const ip = req.ip;
@@ -167,14 +166,14 @@ router.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
     }
 });
 
-router.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/social_embeds/:id', requirePermission('social.delete'), (req, res) => {
     db.run("DELETE FROM social_embeds WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social embed deleted successfully.' });
     });
 });
 
-router.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
+router.post('/api/admin/publish-home-slider', requirePermission('site-content.edit'), (req, res) => {
     db.all("SELECT url, alt FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
 

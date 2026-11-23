@@ -540,7 +540,36 @@
        MANAGE USERS — table state + render (pagination, sort, bulk)
     ================================================================ */
     var umTable = { page: 1, limit: 10, sort: 'created_at', order: 'DESC', search: '', selected: {} };
-    var UM_ROLES = ['assistant', 'manager', 'administrator']; // keep in sync with backend VALID_ADMIN_ROLES + Add User drawer
+    // Seeded with the 3 system roles; replaced with the full live list by loadAndPopulateRoles()
+    var UM_ROLES = [
+        { key: 'assistant',     name: 'Assistant' },
+        { key: 'manager',       name: 'Manager' },
+        { key: 'administrator', name: 'Administrator' }
+    ];
+
+    function loadAndPopulateRoles() {
+        fetch('/api/admin/roles', { credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (!d.success || !Array.isArray(d.roles)) return;
+                UM_ROLES = d.roles
+                    .filter(function(r) { return r.status === 'active'; })
+                    .map(function(r) { return { key: r.key, name: r.name }; });
+                // Repopulate the drawer select, preserving its current value
+                var sel = qs('#umNewUserRole');
+                if (sel) {
+                    var currentVal = sel.value;
+                    sel.innerHTML = UM_ROLES.map(function(r) {
+                        return '<option value="' + esc(r.key) + '"' +
+                               (r.key === currentVal || (!currentVal && r.key === 'manager') ? ' selected' : '') +
+                               '>' + esc(r.name) + '</option>';
+                    }).join('');
+                }
+                // Re-render the table so inline role dropdowns also pick up the full list
+                if (allUsersCache.length) renderUsersTable();
+            })
+            .catch(function() { /* non-fatal: defaults stay */ });
+    }
 
     function umDisplayName(u) { return u.full_name || u.username || u.email || ''; }
 
@@ -630,7 +659,7 @@
                 ? '<span class="um-role-badge um-role-badge--' + esc(role) + '">' + esc(roleLabel) + '</span>'
                 : '<select class="atl-input um-role-change" data-id="' + esc(u.id) + '" aria-label="Change role for ' + esc(name) + '" style="width:auto; background:var(--atl-card); color:var(--atl-ink); border-color:var(--atl-line); font-size:12px;">' +
                       UM_ROLES.map(function(r) {
-                          return '<option value="' + r + '"' + (r === role ? ' selected' : '') + '>' + (r.charAt(0).toUpperCase() + r.slice(1)) + '</option>';
+                          return '<option value="' + esc(r.key) + '"' + (r.key === role ? ' selected' : '') + '>' + esc(r.name) + '</option>';
                       }).join('') +
                   '</select>';
 
@@ -1196,6 +1225,7 @@
         initProfile();
         initPasswordPanel();
         initManageUsers();
+        loadAndPopulateRoles(); // fetch live roles and populate drawer select + inline dropdowns
         initEmailLogs();
         initManageLogs();
 

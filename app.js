@@ -459,6 +459,10 @@ app.use('/css/fonts', express.static(path.join(__dirname, 'fonts')));
 // the file's built-in text or a hidden section first. Must stay BEFORE the static server below, which would otherwise serve the plain file.
 app.use(require('./routes/public/homepage'));
 
+// The admin page is sent with the admin's chosen loading screen already in it, for the same reason (lib/admin-page-render.js).
+// Must also stay BEFORE the static server below.
+app.use(require('./routes/public/admin-page'));
+
 // Enforce UTF-8 charset on all text-based static files + Cache Optimization
 app.use(express.static(path.join(__dirname, '/'), {
     setHeaders(res, filePath) {

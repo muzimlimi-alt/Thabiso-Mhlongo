@@ -114,8 +114,28 @@
 </head>
 
 <body class="admin-body">
-    <!-- Page preloader: the same shared copy as the homepage (js/tm-preloader.js). Must stay the FIRST thing in <body>. -->
-    <script src="js/tm-preloader.js?v=6"></script>
+    <!-- Which loading screen to show. The admin page is served through routes/public/admin-page.js, which writes the admin's choice in
+         place of the token below (lib/admin-page-render.js) exactly as the homepage does - so a change is live for every administrator on
+         their very next load of this page, not the one after it. The fallback is this browser's cached answer, kept current by the line
+         below and by js/admin/preloader-settings.js. Must stay ABOVE the loader itself. -->
+    <script id="tmPreloaderBoot">
+    (function () {
+        try {
+            var v = /*TM_PRELOADER*/null;
+            if (v && typeof v === 'object') { try { localStorage.setItem('tm_preloader', JSON.stringify(v)); } catch (e) {} }
+            else { try { v = JSON.parse(localStorage.getItem('tm_preloader') || '{}') || {}; } catch (e) { v = {}; } }
+            window.__tmPreloaderStyle = v && v.style;
+            window.__tmPreloaderField = v && v.field;
+            if (window.__tmPreloaderStyle === 'portrait') {
+                var l = document.createElement('link');
+                l.rel = 'preload'; l.as = 'image'; l.href = 'images/preloader/portrait-mark.webp?v=1'; l.type = 'image/webp';
+                document.head.appendChild(l);
+            }
+        } catch (e) {}
+    })();
+    </script>
+    <!-- Page preloader: the same shared copy as the homepage (js/tm-preloader.js). Must stay the FIRST thing in <body> after the boot above. -->
+    <script src="js/tm-preloader.js?v=7"></script>
     <!--<h1 class="sr-only">Administration Dashboard</h1>-->
     <!-- Mobile Header/Trigger Area (Subtle replacement for main header on mobile) -->
     <div class="tm-mobile-top-bar" style="display: none;">
@@ -315,7 +335,7 @@
                         <button type="button" class="atl-nav-parent sh-nav-item" aria-expanded="false" aria-controls="navEmail"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span><span class="tm-nav-text sh-lbl">Email</span><span class="atl-nav-chev sh-chev"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span></button>
                         <ul class="atl-nav-sub sh-nav-sub" id="navEmail" data-title="Email">
                             <li><a href="#inquiriesAdmin" class="tm-nav-link" title="Inquiries inbox"><span class="tm-nav-text">Mailbox</span></a></li>
-                            <li><a href="#emailBannersAdmin" class="tm-nav-link" title="Banner images used at the top of outgoing emails"><span class="tm-nav-text">Banners</span></a></li>
+                            <li><a href="#emailBannersAdmin" class="tm-nav-link" title="Banner images used at the top of outgoing emails"><span class="tm-nav-text">Email Banners</span></a></li>
                             <li><a href="#emailLogsAdmin" class="tm-nav-link" title="Every email the system sent, and whether it was delivered"><span class="tm-nav-text">Delivery Log</span></a></li>
                         </ul>
                     </li>
@@ -7053,6 +7073,7 @@
                     <div class="atl-tab-bar" role="tablist">
                         <button class="atl-tab-btn active" data-um-tab="brandPanelIdentity" role="tab" aria-selected="true"><i class="fa-solid fa-fingerprint"></i> Identity</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelHomepage" role="tab" aria-selected="false"><i class="fa-solid fa-table-cells-large"></i> Homepage Sections</button>
+                        <button class="atl-tab-btn" data-um-tab="brandPanelPreloader" role="tab" aria-selected="false"><i class="fa-solid fa-spinner"></i> Preloader</button>
                         <button class="atl-tab-btn" data-um-tab="apPanelAppearance" role="tab" aria-selected="false"><i class="fa-solid fa-display"></i> Admin Appearance</button>
                         <button class="atl-tab-btn" data-um-tab="apPanelLogin" role="tab" aria-selected="false"><i class="fa-solid fa-right-to-bracket"></i> Sign-in Page</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
@@ -7211,6 +7232,74 @@
                                 <button id="btnSaveSections" class="atl-btn atl-btn--primary" onclick="saveSectionVisibility(this)">
                                     <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Preloader: which of the two loading screens the site and this admin show (js/tm-preloader.js).
+                         Behaviour: js/admin/preloader-settings.js. Styling: css/admin/22-preloader-settings.css.
+                         The samples in the two tiles are live - the real animations, scaled - so they cannot go stale. -->
+                    <div class="um-panel" id="brandPanelPreloader">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-spinner"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">Loading Screen</h4>
+                                    <p class="um-section-desc">The screen a visitor sees for the moment a page is coming up. It applies to the public website and to this admin area, and goes live the moment you save. On a fast connection most visitors never see it at all &mdash; it stays hidden for the first third of a second.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+
+                            <div id="plLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading&hellip;</div>
+
+                            <div class="pl-options" role="radiogroup" aria-label="Loading screen design">
+                                <div class="pl-option" id="plOptWordmark" role="radio" tabindex="0" aria-checked="false" data-style="wordmark">
+                                    <span class="pl-option__check"><i class="fa-solid fa-check"></i></span>
+                                    <div class="pl-stage pl-stage--wordmark" aria-hidden="true">
+                                        <div class="pl-word"><span>THABIS</span><span class="pl-word__o"><span class="pl-word__inner"><span class="pl-word__core"></span></span></span></div>
+                                    </div>
+                                    <div>
+                                        <div class="pl-option__label">Wordmark <span class="pl-option__badge" id="plBadgeWordmark">Current</span></div>
+                                        <p class="pl-option__desc">The name in the house serif, its final letter a gold disc breathing around a pulsing core. Drawn entirely in CSS, so there is nothing extra to download &mdash; the quickest of the two to appear.</p>
+                                    </div>
+                                </div>
+
+                                <div class="pl-option" id="plOptPortrait" role="radio" tabindex="0" aria-checked="false" data-style="portrait">
+                                    <span class="pl-option__check"><i class="fa-solid fa-check"></i></span>
+                                    <div class="pl-stage pl-stage--portrait" id="plStagePortrait" aria-hidden="true">
+                                        <div class="pl-card">
+                                            <span class="pl-plate"><img class="pl-mark" src="images/preloader/portrait-mark.webp?v=1" alt="" decoding="async"><span class="pl-sheen"></span></span>
+                                            <div class="pl-name">Thabiso<br>Mhlongo</div>
+                                            <div class="pl-rule"></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="pl-option__label">Portrait <span class="pl-option__badge" id="plBadgePortrait">Current</span></div>
+                                        <p class="pl-option__desc">A fashion-house title card: the graphite portrait centred in a hairline frame, breathing slowly while a gold light travels down it, the name letterspaced beneath. Adds one 52&nbsp;KB picture, loaded ahead of time so it is ready before the screen is built.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="um-divider" style="margin-top:22px;"></div>
+
+                            <h5 class="um-section-label" style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--atl-muted) !important; margin:0 0 4px;">Field</h5>
+                            <p class="um-section-desc" id="plFieldHint" style="margin:0 0 12px;">The background the portrait sits on.</p>
+                            <div class="pl-fields" id="plFields" role="radiogroup" aria-label="Portrait background">
+                                <div class="pl-field" id="plFieldOnyx" role="radio" tabindex="0" aria-checked="false" data-field="onyx">
+                                    <span class="pl-field__dot pl-field__dot--onyx"></span> Onyx <span class="um-section-desc" style="margin:0; font-size:11.5px;">&mdash; matches the site</span>
+                                </div>
+                                <div class="pl-field" id="plFieldBone" role="radio" tabindex="0" aria-checked="false" data-field="bone">
+                                    <span class="pl-field__dot pl-field__dot--bone"></span> Bone <span class="um-section-desc" style="margin:0; font-size:11.5px;">&mdash; an off-white card</span>
+                                </div>
+                            </div>
+
+                            <div class="um-settings-save" style="margin-top:22px;">
+                                <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changes go live on the public site the moment you save.</span>
+                                <span style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <button type="button" class="atl-btn atl-btn--ghost" id="plPreview"><i class="fa-solid fa-play" style="margin-right:6px;"></i>Preview full screen</button>
+                                    <button type="button" class="atl-btn atl-btn--primary" id="plSave"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes</button>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -11889,6 +11978,7 @@
                                 <option value="assistant">Assistant</option>
                                 <option value="manager" selected>Manager</option>
                                 <option value="administrator">Administrator</option>
+                                <!-- Options are replaced dynamically by loadAndPopulateRoles() in user-management.js -->
                             </select>
                         </div>
                     </div>
@@ -12697,6 +12787,7 @@
 
     <link rel="stylesheet" href="css/admin/20-calendar-filters.css">
     <link rel="stylesheet" href="css/admin/21-rbac-matrix.css">
+    <link rel="stylesheet" href="css/admin/22-preloader-settings.css">
     <!-- Admin shell (sidebar, top bar, account menu) — a copy of the O'luhle/TOCA admin shell.
          After every admin section sheet so it wins over their !important shell rules; before
          core/appearance.css so the Presence axis can still override density on top. -->
@@ -14148,6 +14239,8 @@
     <script src="js/admin/security-audit.js"></script>
     <script src="js/admin/roles-permissions.js?v=1"></script>
     <script src="js/admin/system-settings.js?v=nav8"></script>
+    <!-- Site Appearance > Preloader: picks which loading screen js/tm-preloader.js builds. -->
+    <script src="js/admin/preloader-settings.js?v=1"></script>
     <script src="js/admin/business-profile.js?v=8"></script>
     <script src="js/admin/google-calendar.js?v=4"></script>
     <script src="js/admin/financials.js?v=3"></script>

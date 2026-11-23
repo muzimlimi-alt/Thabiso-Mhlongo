@@ -4,8 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { imageSize } = require('image-size');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const objectStorage = require('../../lib/object-storage');
 const bannerRegistry = require('../../js/bannerRegistry');
 const router = express.Router();
@@ -57,7 +56,7 @@ const BANNER_CATEGORIES = [
 ];
 
 // ── List (paginated, with usage counts) ──
-router.get('/api/admin/banners', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/banners', requirePermission('email-banners.view'), (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 200);
     const offset = (page - 1) * limit;
@@ -104,7 +103,7 @@ router.get('/api/admin/banners', requireAdmin, requireRole(['administrator', 'ma
 });
 
 // ── Get one, with its "used by" list ──
-router.get('/api/admin/banners/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/banners/:id', requirePermission('email-banners.view'), (req, res) => {
     db.get('SELECT * FROM banners WHERE id = ?', [req.params.id], (err, banner) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!banner) return res.status(404).json({ success: false, message: 'Banner not found.' });
@@ -117,7 +116,7 @@ router.get('/api/admin/banners/:id', requireAdmin, requireRole(['administrator',
 });
 
 // ── Create ──
-router.post('/api/admin/banners', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/banners', requirePermission('email-banners.create'), (req, res) => {
     bannerUpload(req, res, async (uploadErr) => {
         if (uploadErr) return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
 
@@ -148,7 +147,7 @@ router.post('/api/admin/banners', requireAdmin, requireRole(['administrator', 'm
 });
 
 // ── Update (metadata; optional image replace) ──
-router.put('/api/admin/banners/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/banners/:id', requirePermission('email-banners.edit'), (req, res) => {
     bannerUpload(req, res, (uploadErr) => {
         if (uploadErr) return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
 
@@ -206,8 +205,8 @@ function setBannerStatus(status) {
         });
     };
 }
-router.patch('/api/admin/banners/:id/archive', requireAdmin, requireRole(['administrator', 'manager']), setBannerStatus('archived'));
+router.patch('/api/admin/banners/:id/archive', requirePermission('email-banners.edit'), setBannerStatus('archived'));
 
-router.patch('/api/admin/banners/:id/restore', requireAdmin, requireRole(['administrator', 'manager']), setBannerStatus('active'));
+router.patch('/api/admin/banners/:id/restore', requirePermission('email-banners.edit'), setBannerStatus('active'));
 
 module.exports = router;

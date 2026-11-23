@@ -2,8 +2,7 @@
 // (same requireAdmin/requireRole split, logAudit + resolveActor last_updated pattern).
 const express = require('express');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
@@ -14,7 +13,7 @@ const router = express.Router();
 // order the website uses, each annotated with what the website does with it (is_public,
 // public_position) plus whether the whole section is switched on. Built by lib/team.js, which the
 // public API also uses, so the two views cannot drift apart.
-router.get('/api/admin/team', requireAdmin, async (req, res) => {
+router.get('/api/admin/team', requirePermission('site-content.view'), async (req, res) => {
     try {
         res.set('Cache-Control', 'no-store');
         res.json(await getAdminTeamView());
@@ -23,7 +22,7 @@ router.get('/api/admin/team', requireAdmin, async (req, res) => {
     }
 });
 
-router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
+router.put('/api/admin/team/reorder', requirePermission('site-content.edit'), (req, res) => {
     const { order } = req.body; // Array of IDs in new order
     if (!Array.isArray(order)) return res.status(400).json({ success: false, message: 'order must be an array of IDs' });
     db.serialize(() => {
@@ -37,7 +36,7 @@ router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/team', requireAdmin, upload.single('file'), (req, res) => {
+router.post('/api/admin/team', requirePermission('site-content.create'), upload.single('file'), (req, res) => {
     const { name, role, biography, email, phone, website, twitter, linkedin, instagram, behance, fallback_url, status, featured } = req.body;
     const cleanName = typeof name === 'string' ? name.trim() : '';
     if (!cleanName) return res.status(400).json({ success: false, message: 'Name is required.' });
@@ -64,7 +63,7 @@ router.post('/api/admin/team', requireAdmin, upload.single('file'), (req, res) =
         });
 });
 
-router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/team/:id', requirePermission('site-content.edit'), (req, res) => {
     const { name, role, biography, email, phone, website, twitter, linkedin, instagram, behance, fallback_url, clear_image, status, featured, display_order } = req.body;
     const teamId = req.params.id;
     db.get("SELECT * FROM team_members WHERE id = ?", [teamId], (selErr, existing) => {
@@ -112,7 +111,7 @@ router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/team/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/team/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM team_members WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM team_members WHERE id = ?", req.params.id, function(err) {
             if (err) return res.status(500).json({ error: err.message });

@@ -9,6 +9,8 @@
 //   - signing in to the admin (no page reload): the preloader comes straight back and stays until the dashboard cards are filled
 //   - it shows THABISO with the animated gold final "O" (the Cupcake loader, no image to download)
 //   - reduced motion: the O does not pulse
+//   - the OTHER design (Site Appearance > Preloader -> "portrait"): the admin's choice is in the page before any script runs, the
+//     portrait is centred, breathing, with the gold sweep over it, and it still leaves the same way and still blocks nothing
 // Timing: a browser paints nothing in <body> until the stylesheets in <head> have loaded, so every time here is measured from when the page
 // is first able to appear (DOMContentLoaded), not from the request - the same limit any preloader has.
 // Not part of `npm test`: `npm run test:browser` (needs PUPPETEER_EXECUTABLE_PATH). PRELOADER_SHOTS=<dir> saves a screenshot of it showing.
@@ -21,9 +23,11 @@ const ok = (c, n, detail) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL
 const SHOTS = process.env.PRELOADER_SHOTS || null;
 
 // holdMs: delay ONE homepage image this long (0 = none) so the window "load" event waits for it
-async function open(browser, { holdMs = 0, js = true, reducedMotion = false, url = '/', breakTimer = false } = {}) {
+async function open(browser, { holdMs = 0, js = true, reducedMotion = false, url = '/', breakTimer = false, seedCache = null } = {}) {
     const ctx = await browser.createBrowserContext();
     const p = await ctx.newPage();
+    // admin.html is served as a plain file, so it reads the choice from localStorage (js/admin/preloader-settings.js writes it).
+    if (seedCache) await p.evaluateOnNewDocument((v) => { try { localStorage.setItem('tm_preloader', v); } catch (e) {} }, JSON.stringify(seedCache));
     await p.setViewport({ width: 1280, height: 860 });
     p._errs = [];
     p.on('pageerror', (e) => p._errs.push(e.message.slice(0, 200)));
@@ -66,7 +70,12 @@ const state = (p) => p.evaluate(() => {
         shown: Number(getComputedStyle(el).opacity) * Number(getComputedStyle(veil).opacity),
         hiddenVis: getComputedStyle(el).visibility === 'hidden',
         pointer: getComputedStyle(el).pointerEvents,
-        ring: getComputedStyle(el.querySelector('.tm-preloader__inner')).animationName + '/' + getComputedStyle(el.querySelector('.tm-preloader__core')).animationName
+        style: el.classList.contains('tm-preloader--portrait') ? 'portrait' : 'wordmark',
+        // the wordmark's two pulsing discs; the portrait design has neither, so this is null there rather than a crash
+        ring: (function () {
+            const i = el.querySelector('.tm-preloader__inner'), c = el.querySelector('.tm-preloader__core');
+            return i && c ? getComputedStyle(i).animationName + '/' + getComputedStyle(c).animationName : null;
+        })()
     };
 });
 const waitUntil = async (p, fn, ms) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await sleep(100); } return false; };
@@ -161,6 +170,73 @@ const waitUntil = async (p, fn, ms) => { const end = Date.now() + ms; while (Dat
         const rm = await state(p);
         ok(rm.exists && rm.ring === 'none/none', 'reduced motion: the "O" does not pulse', JSON.stringify(rm));
         await p.close();
+
+        // ── the other design: Site Appearance > Preloader set to the portrait ────────────────────────────────────────────
+        // The homepage is served with the choice already written into it, so this also proves a visitor never sees one design
+        // replaced by the other.
+        const wasPre = (await support.pub('GET', '/api/public/site-content')).body.preloader || {};
+        await support.api('PUT', '/api/admin/site-content', { preloader_style: 'portrait', preloader_field: 'onyx' });
+        try {
+            ({ p } = await open(browser, { holdMs: 4000 }));
+            ok(await waitUntil(p, async () => (await state(p)).shown > 0.95, 3000), 'portrait: shows while the page is still loading', JSON.stringify(await state(p)));
+            const pr = await p.evaluate(() => {
+                const el = document.getElementById('tmPreloader');
+                const img = el && el.querySelector('.tm-preloader__mark');
+                const sheen = el && el.querySelector('.tm-preloader__sheen');
+                const name = el && el.querySelector('.tm-preloader__name');
+                if (!el || !img || !sheen || !name) return null;
+                const b = img.getBoundingClientRect();
+                return {
+                    boot: window.__tmPreloaderStyle,
+                    cls: el.classList.contains('tm-preloader--portrait') && el.classList.contains('tm-preloader--onyx'),
+                    src: img.getAttribute('src'),
+                    loaded: img.complete && img.naturalWidth > 0,
+                    visible: Number(getComputedStyle(img).opacity) > 0.5,
+                    centredX: Math.abs((b.left + b.right) / 2 - innerWidth / 2) < 4,
+                    centredY: Math.abs((b.top + b.bottom) / 2 - innerHeight / 2) < innerHeight * 0.25,
+                    breathe: getComputedStyle(img).animationName,
+                    sweep: getComputedStyle(sheen).animationName,
+                    name: name.textContent.replace(/\s+/g, ' ').trim(),
+                    noWord: !el.querySelector('.tm-preloader__word'),
+                    pointer: getComputedStyle(el).pointerEvents
+                };
+            });
+            ok(pr && pr.boot === 'portrait' && pr.cls && pr.noWord, 'portrait: the page was SERVED with this design (no flash of the wordmark)', JSON.stringify(pr));
+            ok(pr && pr.loaded && pr.visible && pr.centredX && pr.centredY, 'portrait: the picture loads and sits in the middle of the page', JSON.stringify(pr));
+            ok(pr && pr.breathe === 'tmPreBreath' && pr.sweep === 'tmPreSweep', 'portrait: it breathes and the gold sweep runs over it', JSON.stringify(pr));
+            ok(pr && pr.name === 'Thabiso Mhlongo' && pr.pointer === 'none', 'portrait: the name is under it, and it never blocks clicks', JSON.stringify(pr));
+            if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'preloader-portrait.png') });
+            ok(await waitUntil(p, async () => !(await state(p)).exists, 5000), 'portrait: leaves when loading finishes (or at its cap)', JSON.stringify(await state(p)));
+            ok(p._errs.length === 0, 'portrait: no script errors', p._errs.join(' | '));
+            await p.close();
+
+            // the bone field, and reduced motion: still a complete title card, just still
+            ({ p } = await open(browser, { holdMs: 4000, reducedMotion: true }));
+            await sleep(900);
+            const rmP = await p.evaluate(() => {
+                const el = document.getElementById('tmPreloader');
+                const img = el && el.querySelector('.tm-preloader__mark');
+                if (!el || !img) return null;
+                return { breathe: getComputedStyle(img).animationName, sheen: getComputedStyle(el.querySelector('.tm-preloader__sheen')).display,
+                    nameShown: Number(getComputedStyle(el.querySelector('.tm-preloader__name')).opacity) > 0.9 };
+            });
+            ok(rmP && rmP.breathe === 'none' && rmP.sheen === 'none' && rmP.nameShown, 'portrait + reduced motion: nothing moves, but the card is still complete', JSON.stringify(rmP));
+            await p.close();
+
+            // the admin page gets it from this browser's cache, not from the server
+            ({ p } = await open(browser, { url: '/admin.html', holdMs: 4000, seedCache: { style: 'portrait', field: 'bone' } }));
+            ok(await waitUntil(p, async () => (await state(p)).shown > 0.95, 3000), 'admin + portrait: shows while the admin page is still loading', JSON.stringify(await state(p)));
+            const adm = await p.evaluate(() => {
+                const el = document.getElementById('tmPreloader');
+                return el ? { portrait: el.classList.contains('tm-preloader--portrait'), bone: el.classList.contains('tm-preloader--bone'), pointer: getComputedStyle(el).pointerEvents } : null;
+            });
+            ok(adm && adm.portrait && adm.bone && adm.pointer === 'none', 'admin + portrait: the cached choice (bone field) is what the admin shows', JSON.stringify(adm));
+            ok(await waitUntil(p, async () => !(await state(p)).exists, 6000), 'admin + portrait: leaves when loading finishes (or at its cap)', JSON.stringify(await state(p)));
+            await p.close();
+        } finally {
+            // put the site back to whatever design it was on before this file ran
+            await support.api('PUT', '/api/admin/site-content', { preloader_style: wasPre.style || 'wordmark', preloader_field: wasPre.field || 'onyx' });
+        }
     } catch (e) {
         ok(false, 'browser test crashed', e && e.stack);
     } finally {

@@ -1,7 +1,6 @@
 const express = require('express');
 const db = require('../../database');
-const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
@@ -19,7 +18,7 @@ const highlightText = (body) => ({
 });
 
 // Admin route — same data/ordering as the public route, but session-gated for the dashboard
-router.get('/api/admin/highlights', requireAdmin, (req, res) => {
+router.get('/api/admin/highlights', requirePermission('site-content.view'), (req, res) => {
     db.all("SELECT * FROM career_highlights ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
@@ -27,7 +26,7 @@ router.get('/api/admin/highlights', requireAdmin, (req, res) => {
 });
 
 // Using Multer array middleware we defined earlier, or single file handler
-router.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res) => {
+router.post('/api/admin/highlights', requirePermission('site-content.create'), upload.single('file'), (req, res) => {
     const { year, display_order, fallback_url, icon } = req.body;
     const { title, badge, location, description } = highlightText(req.body);
     // Prioritize uploaded file over the fallback URL
@@ -42,7 +41,7 @@ router.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, 
     });
 });
 
-router.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/highlights/:id', requirePermission('site-content.edit'), (req, res) => {
     const { year, display_order, fallback_url, clear_image, icon } = req.body;
     const { title, badge, location, description } = highlightText(req.body);
     db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
@@ -68,7 +67,7 @@ router.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/highlights/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
             if (err) return res.status(500).json({ error: err.message });
@@ -78,14 +77,14 @@ router.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administr
     });
 });
 
-router.get('/api/admin/footprint', requireAdmin, (req, res) => {
+router.get('/api/admin/footprint', requirePermission('site-content.view'), (req, res) => {
     db.all("SELECT * FROM footprint_countries ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-router.post('/api/admin/footprint', requireAdmin, upload.single('file'), normalizeBodyFields(['country_name']), (req, res) => {
+router.post('/api/admin/footprint', requirePermission('site-content.create'), upload.single('file'), normalizeBodyFields(['country_name']), (req, res) => {
     const { country_name, display_order, fallback_url } = req.body;
     const imagePath = req.file ? `images/footprint/${req.file.filename}` : (fallback_url || null);
     if (!country_name || !imagePath) {
@@ -100,7 +99,7 @@ router.post('/api/admin/footprint', requireAdmin, upload.single('file'), normali
     });
 });
 
-router.put('/api/admin/footprint/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/footprint/:id', requirePermission('site-content.edit'), (req, res) => {
     const { country_name, display_order, fallback_url } = req.body;
     db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
         const done = function(err) {
@@ -121,7 +120,7 @@ router.put('/api/admin/footprint/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/footprint/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/footprint/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM footprint_countries WHERE id = ?", req.params.id, function(err) {
             if (err) return res.status(500).json({ error: err.message });
@@ -132,7 +131,7 @@ router.delete('/api/admin/footprint/:id', requireAdmin, requireRole(['administra
 });
 
 // Admin: every status, so the moderation queue can show pending/approved/rejected.
-router.get('/api/admin/testimonials', requireAdmin, (req, res) => {
+router.get('/api/admin/testimonials', requirePermission('site-content.view'), (req, res) => {
     const status = req.query.status;
     const where = status ? "WHERE status = ?" : "";
     const params = status ? [status] : [];
@@ -143,7 +142,7 @@ router.get('/api/admin/testimonials', requireAdmin, (req, res) => {
 });
 
 // Admin-authored testimonial — the site owner's own content skips the review queue.
-router.post('/api/admin/testimonials', requireAdmin, upload.single('file'), normalizeBodyFields(['name', 'designation', 'quote']), (req, res) => {
+router.post('/api/admin/testimonials', requirePermission('site-content.create'), upload.single('file'), normalizeBodyFields(['name', 'designation', 'quote']), (req, res) => {
     const { name, designation, quote, display_order, fallback_url } = req.body;
     if (!name || !quote) {
         return res.status(400).json({ success: false, message: 'Name and testimonial text are required.' });
@@ -159,7 +158,7 @@ router.post('/api/admin/testimonials', requireAdmin, upload.single('file'), norm
 });
 
 // Edit — also how Approve/Reject work (a status-only PUT from the admin moderation queue).
-router.put('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/testimonials/:id', requirePermission('site-content.edit'), (req, res) => {
     const { name, designation, quote, display_order, fallback_url, clear_image, status } = req.body;
     db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
         if (selErr) return res.status(500).json({ error: selErr.message });
@@ -183,7 +182,7 @@ router.put('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/testimonials/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/testimonials/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM testimonials WHERE id = ?", req.params.id, function(err) {
             if (err) return res.status(500).json({ error: err.message });
@@ -193,7 +192,7 @@ router.delete('/api/admin/testimonials/:id', requireAdmin, requireRole(['adminis
     });
 });
 
-router.put('/api/admin/gallery/reorder', requireAdmin, (req, res) => {
+router.put('/api/admin/gallery/reorder', requirePermission('site-content.edit'), (req, res) => {
     const { order } = req.body; // Array of IDs in new order
     db.serialize(() => {
         const stmt = db.prepare("UPDATE gallery_images SET display_order = ? WHERE id = ?");
@@ -208,7 +207,7 @@ router.put('/api/admin/gallery/reorder', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/gallery', requireAdmin, upload.single('file'), normalizeBodyFields(['title', 'uploader_name', 'location']), (req, res) => {
+router.post('/api/admin/gallery', requirePermission('site-content.create'), upload.single('file'), normalizeBodyFields(['title', 'uploader_name', 'location']), (req, res) => {
     const { title, fallback_url, uploader_name, location } = req.body;
     const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
     if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });
@@ -223,7 +222,7 @@ router.post('/api/admin/gallery', requireAdmin, upload.single('file'), normalize
     });
 });
 
-router.put('/api/admin/gallery/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/gallery/:id', requirePermission('site-content.edit'), (req, res) => {
     const { title, fallback_url, uploader_name, location } = req.body;
     const galleryId = req.params.id;
     db.get("SELECT * FROM gallery_images WHERE id = ?", [galleryId], (selErr, existing) => {
@@ -245,7 +244,7 @@ router.put('/api/admin/gallery/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/gallery/:id', requirePermission('site-content.delete'), (req, res) => {
     db.get("SELECT * FROM gallery_images WHERE id = ?", [req.params.id], (selErr, existing) => {
         db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
             if (err) return res.status(500).json({ error: err.message });
