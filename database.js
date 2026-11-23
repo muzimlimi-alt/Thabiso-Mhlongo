@@ -3241,6 +3241,11 @@ function initializeDatabase() {
             });
         });
 
+        // Dynamic RBAC permission system (version 123): role table, permission matrix, user overrides.
+        // Seed mirrors current requireRole / nav-config tiers exactly — zero behaviour change on migrate.
+        // See lib/rbac-schema.js and lib/rbac-registry.js for details.
+        require('./lib/rbac-schema').apply(db);
+
         console.log('Database tables initialized successfully.');
     });
 }
