@@ -1,8 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requireRole, requirePermission } = require('../../middleware/rbac');
+const { getEffectivePermissions, invalidatePermissionsCache } = require('../../lib/rbac-engine');
 const {
     getAdminsListWithCreatorModifier, getAdminLoginLogsWithNames, insertAdminUser,
     getAdminForInvite, deletePasswordResetTokensForAdmin, getAdminForEditById,
@@ -261,6 +263,97 @@ router.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator'
                 return res.status(403).json({ success: false, message: 'Cannot delete the last remaining administrator account.' });
             }
             proceed();
+        });
+    });
+});
+
+// ── Per-user permission overrides ────────────────────────────────────────────
+
+// Get a user's effective permissions, their role, and explicit allow/deny overrides.
+router.get('/api/admin/users/:id/permissions', requireAdmin, requirePermission('users.manage'), (req, res) => {
+    const targetId = parseInt(req.params.id, 10);
+    if (!targetId) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
+    db.get('SELECT id, username, role FROM admins WHERE id = ?', [targetId], (err, user) => {
+        if (err || !user) return res.status(404).json({ success: false, message: 'User not found.' });
+        db.all(
+            `SELECT p.key, p.module, p.action, p.label, p.is_sensitive, uo.effect, uo.granted_at, uo.reason
+             FROM rbac_user_overrides uo
+             JOIN rbac_permissions p ON p.id = uo.permission_id
+             WHERE uo.admin_id = ? ORDER BY p.module, p.action`,
+            [targetId],
+            (oErr, overrides) => {
+                if (oErr) return res.status(500).json({ success: false, message: 'Could not load overrides.' });
+                getEffectivePermissions(targetId, user.role)
+                    .then(permsSet => res.json({
+                        success: true,
+                        user: { id: user.id, username: user.username, role: user.role },
+                        effective_permissions: [...permsSet],
+                        overrides: overrides || [],
+                    }))
+                    .catch(() => res.status(500).json({ success: false, message: 'Could not resolve effective permissions.' }));
+            }
+        );
+    });
+});
+
+// Set per-user allow/deny overrides. Each entry: { key, effect: 'allow'|'deny'|null }.
+// null effect removes the override. Privilege escalation guard applies (can't grant what you lack).
+router.put('/api/admin/users/:id/permissions', requireAdmin, requirePermission('users.manage'), (req, res) => {
+    const targetId = parseInt(req.params.id, 10);
+    if (!targetId) return res.status(400).json({ success: false, message: 'Invalid user ID.' });
+    if (targetId === req.session.adminId) return res.status(403).json({ success: false, message: 'Cannot set permission overrides on your own account.' });
+    if (!Array.isArray(req.body.overrides)) return res.status(400).json({ success: false, message: 'overrides must be an array.' });
+
+    db.get('SELECT id, username, role FROM admins WHERE id = ?', [targetId], (err, user) => {
+        if (err || !user) return res.status(404).json({ success: false, message: 'User not found.' });
+        const actorRole = req.session.role || 'assistant';
+
+        getEffectivePermissions(req.session.adminId, actorRole).then(actorPerms => {
+            if (actorRole !== 'administrator') {
+                const escalated = req.body.overrides.filter(ov => ov.effect === 'allow' && !actorPerms.has(ov.key));
+                if (escalated.length) {
+                    return res.status(403).json({ success: false, message: `Cannot grant permissions you do not hold: ${escalated.map(o => o.key).slice(0, 3).join(', ')}` });
+                }
+            }
+
+            const now = new Date().toISOString();
+            const ops = req.body.overrides.filter(ov => ov && ov.key);
+            if (ops.length === 0) return res.json({ success: true, message: 'No changes.' });
+
+            let done = 0;
+            const onDone = (opErr) => {
+                if (opErr) console.error('[users/permissions] override op failed:', opErr);
+                done++;
+                if (done < ops.length) return;
+                invalidatePermissionsCache(targetId);
+                require('../../lib/audit-log').logAudit({
+                    tableName: 'rbac_user_overrides', recordId: targetId, action: 'update', req,
+                    newValues: { overrides: ops },
+                    reason: `User permission overrides updated by ${req.session.username}`,
+                }).catch(e => console.error('logAudit failed:', e));
+                res.json({ success: true, message: 'Overrides updated.' });
+            };
+
+            for (const ov of ops) {
+                if (ov.effect == null) {
+                    db.run(
+                        `DELETE FROM rbac_user_overrides WHERE admin_id = ? AND permission_id = (SELECT id FROM rbac_permissions WHERE key = ?)`,
+                        [targetId, ov.key], onDone
+                    );
+                } else {
+                    db.run(
+                        `INSERT INTO rbac_user_overrides (admin_id, permission_id, effect, granted_by, granted_at, reason)
+                         VALUES (?, (SELECT id FROM rbac_permissions WHERE key = ?), ?, ?, ?, ?)
+                         ON CONFLICT(admin_id, permission_id) DO UPDATE SET
+                             effect=excluded.effect, granted_by=excluded.granted_by,
+                             granted_at=excluded.granted_at, reason=excluded.reason`,
+                        [targetId, ov.key, ov.effect, req.session.adminId, now, ov.reason || null], onDone
+                    );
+                }
+            }
+        }).catch(engErr => {
+            console.error('[users/permissions] engine error:', engErr);
+            res.status(500).json({ success: false, message: 'Could not verify permissions.' });
         });
     });
 });

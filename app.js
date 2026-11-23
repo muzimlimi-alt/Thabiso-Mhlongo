@@ -525,6 +525,7 @@ app.use(session({
 // '/api/admin/users'), so mounting with no base path is exactly equivalent to the inline
 // app.get/post/... registrations these replaced — this list grows one batch at a time.
 app.use(require('./routes/admin/users'));
+app.use(require('./routes/admin/roles'));    // Dynamic RBAC: role CRUD, permission matrix, user overrides
 app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
 app.use(require('./routes/admin/places'));           // shared Google Places search (lib/places.js)
