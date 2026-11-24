@@ -34,7 +34,7 @@ function cached(key, fn) {
 router.get('/api/admin/insights/overview', requireAdmin, async (req, res) => {
     const range = await rangeFor(req);
     if (range.error) return res.status(400).json({ success: false, error: range.error });
-    const seesMoney = MONEY_ROLES.includes(req.session.role);
+    const seesMoney = MONEY_ROLES.includes(req.session.role) || MONEY_ROLES.includes(req.session.baseRole);
     try {
         const data = await cached(`overview|${range.from}|${range.to}|${range.prevFrom}`, () => insights.overview(range));
         const business = { ...data.business };

@@ -171,7 +171,7 @@
     });
 
     function dbLoadSocialKPIs() {
-        if (window.can && !window.can('dashboard.view')) return;
+        if (window.can && !window.can('social.view')) return;
         fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin', silentOnForbidden: true })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
@@ -579,6 +579,7 @@
     function dbLoadBookingsChart() {
         var el = document.querySelector('#bookingsChart');
         if (!el) return;
+        if (window.can && !window.can('bookings.view')) { var wrap = el.closest('.atl-card'); if (wrap) wrap.style.display = 'none'; return; }
         fetch('/api/admin/analytics/bookings-trend?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
@@ -618,7 +619,7 @@
 
     // ── 9. Today's schedule (bookings + date holds + public events) ─────────────
     function loadTodaysSchedule() {
-        if (window.can && !window.can('dashboard.view')) return Promise.resolve();
+        if (window.can && !window.can('calendar.view')) return Promise.resolve();
         var list    = document.getElementById('dbScheduleList');
         var spinner = document.getElementById('dbScheduleSpinner');
         var empty   = document.getElementById('dbScheduleEmpty');
@@ -686,7 +687,6 @@
         // Only run if the dashboard section is visible and user has permission
         var dash = document.getElementById('dashboardAdmin');
         if (!dash || dash.style.display === 'none') return Promise.resolve();
-        if (window.can && !window.can('dashboard.view')) return Promise.resolve();
         window.__dbAnalyticsStarted = true;
 
         // The tabs work the date range out first (and fill Overview / Finance); then every card below loads for that same range.

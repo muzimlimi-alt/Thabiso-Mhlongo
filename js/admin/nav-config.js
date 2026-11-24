@@ -28,7 +28,7 @@
     // Used by the permission-aware gating pass (admin.html _applyPermGating) in addition to
     // the coarse role check. null = section has no granular permission (always accessible to its role tier).
     var sections = {
-        dashboardAdmin:    { label: 'Dashboard',        title: 'Command Center',            group: 'Insight',      access: ALL,   perm: 'dashboard.view' },
+        dashboardAdmin:    { label: 'Dashboard',        title: 'Command Center',            group: 'Insight',      access: ALL,   perm: null },
         notificationsAdmin: { label: 'Notifications',   title: 'Notifications',             group: 'Insight',      access: ALL,   perm: 'notifications.view' },   // every role; the server returns only that role's categories (docs-internal/notifications.md)
         bookingsAdmin:     { label: 'Pipeline',         title: 'Event Bookings',            group: 'Bookings',     access: ALL,   perm: 'bookings.view' },
         calendarAdmin:     { label: 'Calendar',         title: 'Calendar',                  group: 'Bookings',     access: ALL,   perm: 'calendar.view' },

@@ -553,7 +553,7 @@
                 
                 <div class="db-container">
                     <!-- Social Media Grid -->
-                    <div class="db-social-grid">
+                    <div class="db-social-grid" data-requires-perm="social.view">
                         <div class="db-social-card">
                             <div class="db-social-header">
                                 <i class="fa-brands fa-facebook db-icon-fb"></i>
@@ -653,7 +653,7 @@
                                 <span class="db-stat-value" id="dashStat-calendarAdmin">...</span>
                             </div>
                         </div>
-                        <div class="db-stat-card" onclick="switchTab('bookingsAdmin'); setTimeout(()=>{ $('#bookingStatusFilter').val('NEEDS_ACTION').trigger('change'); }, 300);" style="cursor:pointer;" title="Click to view bookings needing action">
+                        <div class="db-stat-card" data-requires-perm="bookings.view" onclick="switchTab('bookingsAdmin'); setTimeout(()=>{ $('#bookingStatusFilter').val('NEEDS_ACTION').trigger('change'); }, 300);" style="cursor:pointer;" title="Click to view bookings needing action">
                             <div class="db-stat-icon"><i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-orange);"></i></div>
                             <div class="db-stat-content">
                                 <span class="db-stat-label">Needs Action</span>
@@ -670,8 +670,8 @@
                                 <button class="atl-tab-btn" data-um-tab="dbPanelTraffic" role="tab" aria-selected="false"><i class="fa-solid fa-chart-line"></i> Traffic &amp; Visitors</button>
                                 <button class="atl-tab-btn" data-um-tab="dbPanelGeo" role="tab" aria-selected="false"><i class="fa-solid fa-earth-africa"></i> Geography</button>
                                 <button class="atl-tab-btn" data-um-tab="dbPanelPerf" role="tab" aria-selected="false"><i class="fa-solid fa-shield-halved"></i> Performance &amp; Security</button>
-                                <button class="atl-tab-btn" data-um-tab="dbPanelFinance" role="tab" aria-selected="false" id="dbTabFinance"><i class="fa-solid fa-sack-dollar"></i> Finance</button>
-                                <button class="atl-tab-btn" data-um-tab="dbPanelSocial" role="tab" aria-selected="false" id="dbTabSocial"><i class="fa-solid fa-share-nodes"></i> Social KPIs</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelFinance" role="tab" aria-selected="false" id="dbTabFinance" data-requires-perm="finance.view"><i class="fa-solid fa-sack-dollar"></i> Finance</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelSocial" role="tab" aria-selected="false" id="dbTabSocial" data-requires-perm="social.view"><i class="fa-solid fa-share-nodes"></i> Social KPIs</button>
                             </div>
                             <div class="db-range" role="group" aria-label="Date range">
                                 <label class="atl-sr-only" for="dbRange">Date range</label>
@@ -701,7 +701,7 @@
                     <!-- Main Content Grid -->
                     <div class="db-main-grid">
                         <!-- Chart Card -->
-                        <div class="atl-card atl-card--flush db-chart-card">
+                        <div class="atl-card atl-card--flush db-chart-card" data-requires-perm="bookings.view">
                             <div class="atl-card-header">
                                 <h3><i class="fa-solid fa-calendar-check" style="color:var(--atl-amber); margin-right:8px;"></i>Bookings Overview</h3>
                             </div>
@@ -711,7 +711,7 @@
                         </div>
 
                         <!-- Schedule Card -->
-                        <div class="atl-card atl-card--flush db-schedule-card">
+                        <div class="atl-card atl-card--flush db-schedule-card" data-requires-perm="calendar.view">
                             <div class="atl-card-header">
                                 <h3><i class="fa-solid fa-calendar-day" style="color:var(--atl-amber); margin-right:8px;"></i>This Week</h3>
                             </div>
@@ -9947,7 +9947,7 @@
 
                     // Start permission-gated data loads after permissions are resolved
                     (_permP || Promise.resolve()).then(function() {
-                        window._pLoad('dashboard.view', startDashboardLoads);
+                        startDashboardLoads();
                         window._pLoad('site-content.view', function() { if (typeof fetchHomeSlider === 'function') fetchHomeSlider(); });
                         window._pLoad('site-content.view', loadAboutData);
                         window._pLoad('social.view',       loadSocialData);
