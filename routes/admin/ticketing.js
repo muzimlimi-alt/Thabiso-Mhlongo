@@ -5,7 +5,7 @@
 // The server decides every permission; the page only hides what a role can't use.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { logAudit } = require('../../lib/audit-log');
 const ntf = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
@@ -17,8 +17,6 @@ const issue = require('../../lib/ticketing-issue');
 const ticketFinance = require('../../lib/ticket-finance');
 const { emailBaseUrl } = require('../../lib/email-context');
 const router = express.Router();
-
-const MANAGE = requireRole(['administrator', 'manager']);
 const fail = (res, e, label) => {
     if (e && e.refusal) return res.status(e.status).json({ success: false, message: e.message, sold_out: e.sold_out, errors: e.errors });
     console.error(`[Ticketing admin] ${label}:`, e && e.message);
@@ -50,7 +48,7 @@ function describeTierChange(b, a) {
 
 // ---------------------------------------------------------------- an event's tickets (the Manage Tickets screen and the event drawer's Tickets tab)
 
-router.get('/api/admin/events/:id/ticketing', requireAdmin, async (req, res) => {
+router.get('/api/admin/events/:id/ticketing', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
         if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -80,7 +78,7 @@ router.get('/api/admin/events/:id/ticketing', requireAdmin, async (req, res) => 
     } catch (e) { fail(res, e, 'event ticketing'); }
 });
 
-router.post('/api/admin/events/:id/ticket-types', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/events/:id/ticket-types', requireAdmin, requirePermission('events.create'), async (req, res) => {
     try {
         const { clean, errors } = core.validateTier(req.body);
         if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
@@ -90,7 +88,7 @@ router.post('/api/admin/events/:id/ticket-types', requireAdmin, MANAGE, async (r
     } catch (e) { fail(res, e, 'create tier'); }
 });
 
-router.put('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, res) => {
+router.put('/api/admin/ticket-types/:id', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     try {
         const { clean, errors } = core.validateTier(req.body);
         if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
@@ -103,7 +101,7 @@ router.put('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, res)
     } catch (e) { fail(res, e, 'update tier'); }
 });
 
-router.delete('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, res) => {
+router.delete('/api/admin/ticket-types/:id', requireAdmin, requirePermission('events.delete'), async (req, res) => {
     try {
         const tier = await ticketing.deleteTier(idParam(req.params.id));
         await logAudit({ tableName: 'ticket_types', recordId: tier.id, action: 'TICKET_TYPE_DELETED', req, oldValues: tier });
@@ -112,7 +110,7 @@ router.delete('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, r
 });
 
 // A category's total places, on its own: { capacity: 150 } sets it, { add: 50 } / { add: -10 } adds or removes. Never below sold + held.
-router.post('/api/admin/ticket-types/:id/capacity', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticket-types/:id/capacity', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     try {
         const { before, after } = await ticketing.setTierCapacity(idParam(req.params.id), req.body);
         await logAudit({ tableName: 'ticket_types', recordId: after.id, action: 'TICKET_CAPACITY_CHANGED', req, oldValues: before, newValues: after, reason: `${after.name}: places ${before.capacity} -> ${after.capacity}` });
@@ -121,7 +119,7 @@ router.post('/api/admin/ticket-types/:id/capacity', requireAdmin, MANAGE, async 
 });
 
 // Switch one category on / off for new buyers: { enabled: true | false }.
-router.post('/api/admin/ticket-types/:id/enabled', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticket-types/:id/enabled', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     try {
         const enabled = !!req.body && (req.body.enabled === true || req.body.enabled === 'true');
         const { before, after } = await ticketing.setTierEnabled(idParam(req.params.id), enabled);
@@ -131,7 +129,7 @@ router.post('/api/admin/ticket-types/:id/enabled', requireAdmin, MANAGE, async (
 });
 
 // The order the categories are listed in: { order: [tier ids, first to last] }.
-router.post('/api/admin/events/:id/ticket-types/reorder', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/events/:id/ticket-types/reorder', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     try {
         const eventId = idParam(req.params.id);
         const { before, after } = await ticketing.reorderTiers(eventId, req.body && req.body.order);
@@ -145,7 +143,7 @@ const SALES_WORDS = {
     open: ['TICKET_SALES_OPENED', 'Ticket sales are open.'], resume: ['TICKET_SALES_RESUMED', 'Ticket sales have resumed.'], reopen: ['TICKET_SALES_REOPENED', 'Ticket sales are open again.'],
     pause: ['TICKET_SALES_PAUSED', 'Ticket sales are paused. Buyers already paying can finish.'], close: ['TICKET_SALES_CLOSED', 'Ticket sales are closed. Buyers already paying can finish.']
 };
-router.post('/api/admin/events/:id/ticket-sales', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/events/:id/ticket-sales', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const body = req.body || {};
         const action = typeof body.action === 'string' ? body.action : (body.open === true || body.open === 'true' ? 'open' : 'close');
@@ -161,7 +159,7 @@ router.post('/api/admin/events/:id/ticket-sales', requireAdmin, MANAGE, async (r
 });
 
 // The event-wide sales window (both optional): { opens_at, closes_at } as datetime-local values, South African time.
-router.put('/api/admin/events/:id/ticket-sales-window', requireAdmin, MANAGE, async (req, res) => {
+router.put('/api/admin/events/:id/ticket-sales-window', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     try {
         const { clean, errors } = core.validateSalesWindow(req.body);
         if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
@@ -173,7 +171,7 @@ router.put('/api/admin/events/:id/ticket-sales-window', requireAdmin, MANAGE, as
 });
 
 // The organiser's own "Sold out" mark (the Events status) - distinct from closing sales and from the automatic sold-out: { mark: true | false }.
-router.post('/api/admin/events/:id/sold-out', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/events/:id/sold-out', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const mark = !!req.body && (req.body.mark === true || req.body.mark === 'true');
         const eventId = idParam(req.params.id);
@@ -184,7 +182,7 @@ router.post('/api/admin/events/:id/sold-out', requireAdmin, MANAGE, async (req, 
 });
 
 // Who changed what in this event's ticketing, newest first.
-router.get('/api/admin/events/:id/ticketing-history', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/events/:id/ticketing-history', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         const rows = await ticketing.eventHistory(idParam(req.params.id));
         res.json({ success: true, history: rows.map(r => ({ id: r.id, action: r.action, what: r.reason || r.action, who: r.actor || 'system', at: r.change_timestamp })) });
@@ -195,7 +193,7 @@ router.get('/api/admin/events/:id/ticketing-history', requireAdmin, MANAGE, asyn
 
 const isAssistant = (req) => (req.session.role || 'assistant') === 'assistant';
 
-router.get('/api/admin/ticketing/events', requireAdmin, async (req, res) => {
+router.get('/api/admin/ticketing/events', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         const rows = await ticketing.ticketedEvents();
         res.json({ success: true, events: rows.map(e => ({ ...e, event_title: e.event_title, starts_label: core.formatSast(core.eventStart(e)) })) });
@@ -203,7 +201,7 @@ router.get('/api/admin/ticketing/events', requireAdmin, async (req, res) => {
 });
 
 // Revenue is for the people who handle money; an assistant at the door sees sold / checked-in counts only.
-router.get('/api/admin/ticketing/events/:id/stats', requireAdmin, async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/stats', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         const id = idParam(req.params.id);
         const ev = await ticketing.getEvent(id);
@@ -216,13 +214,13 @@ router.get('/api/admin/ticketing/events/:id/stats', requireAdmin, async (req, re
     } catch (e) { fail(res, e, 'stats'); }
 });
 
-router.get('/api/admin/ticketing/orders', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/orders', requireAdmin, requirePermission('events.approve'), async (req, res) => {
     try {
         res.json({ success: true, ...(await ticketing.listOrders({ eventId: idParam(req.query.event_id), status: req.query.status, q: req.query.q, page: req.query.page, pageSize: req.query.page_size })) });
     } catch (e) { fail(res, e, 'orders'); }
 });
 
-router.get('/api/admin/ticketing/orders/:id', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/orders/:id', requireAdmin, requirePermission('events.approve'), async (req, res) => {
     try {
         const d = await ticketing.orderDetail(idParam(req.params.id));
         if (!d) return res.status(404).json({ success: false, message: 'Order not found.' });
@@ -231,17 +229,17 @@ router.get('/api/admin/ticketing/orders/:id', requireAdmin, MANAGE, async (req, 
 });
 
 // ---------------------------------------------------------------- Finance: ticket sales as money (lib/ticket-finance.js - read-only)
-router.get('/api/admin/ticketing/finance', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/finance', requireAdmin, requirePermission('finance.view'), async (req, res) => {
     try { res.json({ success: true, ...(await ticketFinance.overview(req.query.date_from, req.query.date_to)) }); } catch (e) { fail(res, e, 'finance overview'); }
 });
-router.get('/api/admin/ticketing/finance/events/:id/orders', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/finance/events/:id/orders', requireAdmin, requirePermission('finance.view'), async (req, res) => {
     try {
         const id = idParam(req.params.id);
         if (!id) return res.status(404).json({ success: false, message: 'Event not found.' });
         res.json({ success: true, orders: await ticketFinance.eventOrders(id) });
     } catch (e) { fail(res, e, 'finance event orders'); }
 });
-router.get('/api/admin/ticketing/finance/orders/:id', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/finance/orders/:id', requireAdmin, requirePermission('finance.view'), async (req, res) => {
     try {
         const p = await ticketFinance.orderPayment(idParam(req.params.id));
         if (!p) return res.status(404).json({ success: false, message: 'Order not found.' });
@@ -249,7 +247,7 @@ router.get('/api/admin/ticketing/finance/orders/:id', requireAdmin, MANAGE, asyn
     } catch (e) { fail(res, e, 'finance order'); }
 });
 
-router.post('/api/admin/ticketing/orders/:id/resend', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/orders/:id/resend', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const order = await ticketing.getOrderById(idParam(req.params.id));
         if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
@@ -262,7 +260,7 @@ router.post('/api/admin/ticketing/orders/:id/resend', requireAdmin, MANAGE, asyn
 });
 
 // Records a refund made in the PayFast dashboard: tickets stop working at the door, places go back on sale.
-router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, requirePermission('payments.manage'), async (req, res) => {
     try {
         const note = core.oneLine((req.body && req.body.note) || '').slice(0, 300);
         const target = await ticketing.getOrderById(idParam(req.params.id));
@@ -292,7 +290,7 @@ router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, asyn
 });
 
 // ── tickets issued outside a sale (lib/ticketing-issue.js): complimentary orders, void and reissue of one ticket ──
-router.post('/api/admin/ticketing/events/:id/complimentary', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/events/:id/complimentary', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const r = await issue.issueComplimentary(idParam(req.params.id), req.body || {}, req.session.adminId);
         await logAudit({ tableName: 'ticket_orders', recordId: r.order.id, action: 'TICKETS_COMPLIMENTARY_ISSUED', req,
@@ -307,7 +305,7 @@ router.post('/api/admin/ticketing/events/:id/complimentary', requireAdmin, MANAG
     } catch (e) { fail(res, e, 'complimentary'); }
 });
 
-router.post('/api/admin/ticketing/tickets/:token/reissue', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/tickets/:token/reissue', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         res.set('Cache-Control', 'no-store');
         const body = req.body || {};
@@ -327,7 +325,7 @@ router.post('/api/admin/ticketing/tickets/:token/reissue', requireAdmin, MANAGE,
 
 // The show was cancelled or postponed (set in the Events editor): e-mail every paid order's buyer, once each. Cancelled -> "you will be
 // refunded" (each refund is then made in PayFast and marked per order); postponed -> "your tickets stay valid".
-router.post('/api/admin/ticketing/events/:id/notify-holders', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/events/:id/notify-holders', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
         if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -347,7 +345,7 @@ router.post('/api/admin/ticketing/events/:id/notify-holders', requireAdmin, MANA
 });
 
 // Reconciliation: every order that went to PayFast, with PayFast's payment id, status and refund - to tick off against the PayFast dashboard.
-router.get('/api/admin/ticketing/events/:id/orders.csv', requireAdmin, MANAGE, exportRateLimiter, async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/orders.csv', requireAdmin, requirePermission('events.approve'), exportRateLimiter, async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
         if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -366,7 +364,7 @@ router.get('/api/admin/ticketing/events/:id/orders.csv', requireAdmin, MANAGE, e
     } catch (e) { fail(res, e, 'orders csv'); }
 });
 
-router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, MANAGE, exportRateLimiter, async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, requirePermission('events.approve'), exportRateLimiter, async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
         if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -389,13 +387,13 @@ router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, MANAGE
 const { doorView } = door;
 
 // ── door links (administrators / managers): create, list, switch off ──
-router.get('/api/admin/ticketing/events/:id/door-passes', requireAdmin, MANAGE, async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/door-passes', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try { res.json({ success: true, passes: await door.listPasses(idParam(req.params.id)) }); }
     catch (e) { fail(res, e, 'door passes'); }
 });
 
 // The link (and a QR code of it, to open it on the volunteer's phone) is returned ONCE - only its hash is kept.
-router.post('/api/admin/ticketing/events/:id/door-passes', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/events/:id/door-passes', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         const { pass, secret } = await door.createPass(idParam(req.params.id), req.body && req.body.label, req.session.adminId);
         const link = `${emailBaseUrl()}/checkin?pass=${secret}`;
@@ -404,7 +402,7 @@ router.post('/api/admin/ticketing/events/:id/door-passes', requireAdmin, MANAGE,
     } catch (e) { fail(res, e, 'create door pass'); }
 });
 
-router.delete('/api/admin/ticketing/events/:id/door-passes/:passId', requireAdmin, MANAGE, async (req, res) => {
+router.delete('/api/admin/ticketing/events/:id/door-passes/:passId', requireAdmin, requirePermission('events.delete'), async (req, res) => {
     try {
         await door.revokePass(idParam(req.params.id), idParam(req.params.passId));
         await logAudit({ tableName: 'ticket_door_passes', recordId: idParam(req.params.passId), action: 'DOOR_LINK_SWITCHED_OFF', req });
@@ -412,7 +410,7 @@ router.delete('/api/admin/ticketing/events/:id/door-passes/:passId', requireAdmi
     } catch (e) { fail(res, e, 'revoke door pass'); }
 });
 
-router.get('/api/admin/ticketing/tickets/:token', requireAdmin, async (req, res) => {
+router.get('/api/admin/ticketing/tickets/:token', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         res.set('Cache-Control', 'no-store');
         const t = await ticketing.ticketByToken(String(req.params.token || ''));
@@ -421,7 +419,7 @@ router.get('/api/admin/ticketing/tickets/:token', requireAdmin, async (req, res)
     } catch (e) { fail(res, e, 'ticket lookup'); }
 });
 
-router.post('/api/admin/ticketing/tickets/:token/check-in', requireAdmin, async (req, res) => {
+router.post('/api/admin/ticketing/tickets/:token/check-in', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try {
         res.set('Cache-Control', 'no-store');
         const r = await ticketing.checkIn(String(req.params.token || ''), req.session.adminId);
@@ -436,7 +434,7 @@ router.post('/api/admin/ticketing/tickets/:token/check-in', requireAdmin, async 
 });
 
 // Undo a mistaken check-in (administrators and managers, with a reason - kept in the audit log with when / who had checked it in).
-router.post('/api/admin/ticketing/tickets/:token/undo-check-in', requireAdmin, MANAGE, async (req, res) => {
+router.post('/api/admin/ticketing/tickets/:token/undo-check-in', requireAdmin, requirePermission('events.approve'), async (req, res) => {
     try {
         const reason = core.oneLine((req.body && req.body.reason) || '').slice(0, 300);
         if (reason.length < 3) return res.status(400).json({ success: false, message: 'Please say why the check-in is being undone (a few words).' });
@@ -447,7 +445,7 @@ router.post('/api/admin/ticketing/tickets/:token/undo-check-in', requireAdmin, M
     } catch (e) { fail(res, e, 'undo check-in'); }
 });
 
-router.get('/api/admin/ticketing/events/:id/door', requireAdmin, async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/door', requireAdmin, requirePermission('events.view'), async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
         if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });

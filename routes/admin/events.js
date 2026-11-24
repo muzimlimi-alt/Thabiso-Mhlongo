@@ -2,7 +2,7 @@ const express = require('express');
 const moment = require('moment-timezone');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { addMinutesToTime, parseDurationToMinutes, timeRangesOverlap } = require('../../lib/time-utils');
 const { resolveActor } = require('../../lib/actor');
 const { findOrCreateVenueFromPlace } = require('../../lib/client-venue');
@@ -124,7 +124,7 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
 }
 
 // --- Events ---
-router.get('/api/admin/events', requireAdmin, (req, res) => {
+router.get('/api/admin/events', requireAdmin, requirePermission('events.view'), (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 200, 500);
     const offset = parseInt(req.query.offset) || 0;
     const status = req.query.status || null;
@@ -147,7 +147,7 @@ router.get('/api/admin/events', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/events', requireAdmin, async (req, res) => {
+router.post('/api/admin/events', requireAdmin, requirePermission('events.create'), async (req, res) => {
     const {
         event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, booking_id, block_type,
         // Parity fix (2026-09-29 location-search consolidation): the Events venue search used to
@@ -229,7 +229,7 @@ router.post('/api/admin/events', requireAdmin, async (req, res) => {
     });
 });
 
-router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
+router.put('/api/admin/events/:id', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     const {
         event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, cancellation_reason, booking_id,
         venue_place_id, venue_address, venue_city, venue_state, venue_country, venue_postal_code, venue_latitude, venue_longitude
@@ -345,7 +345,7 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
     });
 });
 
-router.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.delete('/api/admin/events/:id', requireAdmin, requirePermission('events.delete'), async (req, res) => {
     // Ticket orders are financial records: an event that has any is cancelled, never deleted (the database refuses it too - RESTRICT).
     // Ticket types nobody ever ordered go with the event.
     try {
@@ -375,7 +375,7 @@ router.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator
 });
 
 // Drag-drop date update for public events on the calendar
-router.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
+router.patch('/api/admin/events/:id/date', requireAdmin, requirePermission('events.edit'), async (req, res) => {
     const { date, time } = req.body;
     if (!date) return res.status(400).json({ success: false, message: 'date is required' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
@@ -441,7 +441,7 @@ router.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
 });
 
 // Duplicate an event (copy all fields, reset status to draft, append " (Copy)" to title)
-router.post('/api/admin/events/:id/duplicate', requireAdmin, (req, res) => {
+router.post('/api/admin/events/:id/duplicate', requireAdmin, requirePermission('events.create'), (req, res) => {
     getEventById(req.params.id, (err, row) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (!row) return res.status(404).json({ success: false, message: 'Event not found' });

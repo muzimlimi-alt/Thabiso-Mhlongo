@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveActor } = require('../../lib/actor');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
 const { bookingConfig } = require('../../lib/booking-config');
@@ -86,7 +87,7 @@ function findHoldDateConflict(date, startTime, endTime, excludeHoldId, callback)
  * GET /api/admin/calendar/events
  * Aggregates Bookings, Holds, and Sites Events for FullCalendar
  */
-router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
+router.get('/api/admin/calendar/events', requireAdmin, requirePermission('calendar.view'), (req, res) => {
     const events = [];
     
     db.serialize(() => {
@@ -242,7 +243,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
+router.post('/api/admin/calendar/hold', requireAdmin, requirePermission('calendar.create'), (req, res) => {
     const { date, reason, category, start_time, end_time, block_type } = req.body;
     const notes = reason || category || 'Admin hold';
     if (!date) return res.status(400).json({ success: false, message: 'Date required.' });
@@ -269,14 +270,14 @@ router.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
 /**
  * DELETE /api/admin/calendar/hold/:id
  */
-router.delete('/api/admin/calendar/hold/:id', requireAdmin, (req, res) => {
+router.delete('/api/admin/calendar/hold/:id', requireAdmin, requirePermission('calendar.delete'), (req, res) => {
     deleteDateHoldById(req.params.id, (err) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         res.json({ success: true });
     });
 });
 
-router.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
+router.patch('/api/admin/calendar/hold/:id/date', requireAdmin, requirePermission('calendar.edit'), (req, res) => {
     const { date } = req.body;
     const holdId = req.params.id;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
