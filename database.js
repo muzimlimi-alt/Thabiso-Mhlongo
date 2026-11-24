@@ -3272,6 +3272,30 @@ function initializeDatabase() {
             });
         });
 
+        // RBAC assistant over-grants correction (version 125): remove permissions seeded for assistant
+        // by migration 123 that were removed from ROLE_DEFAULTS.assistant in rbac-registry.js as part
+        // of the Batch 3/4 requireRole→requirePermission sweep (commit fde71d03).
+        // Affected: bookings.manage, calendar.manage, events.create/edit/manage, inquiries.manage/assign.
+        // These map to routes that are manager-or-above (OPS tier), not any-admin.
+        db.get('SELECT 1 FROM schema_migrations WHERE version = 125', [], (err, row) => {
+            if (row) return;
+            db.serialize(() => {
+                db.run(`DELETE FROM rbac_role_permissions
+                        WHERE role_id = (SELECT id FROM rbac_roles WHERE key = 'assistant')
+                        AND permission_id IN (
+                            SELECT id FROM rbac_permissions
+                            WHERE key IN (
+                                'bookings.manage',
+                                'calendar.manage',
+                                'events.create', 'events.edit', 'events.manage',
+                                'inquiries.manage', 'inquiries.assign'
+                            )
+                        )`);
+                db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (125, 'rbac_assistant_over_grants_fix')`);
+                console.log('[migration 125] RBAC assistant over-grants removed.');
+            });
+        });
+
         console.log('Database tables initialized successfully.');
     });
 }
