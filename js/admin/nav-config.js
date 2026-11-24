@@ -24,37 +24,40 @@
 
     // id -> { label: sidebar text, title: the page's own heading, group, access: roles that may open it, sidebar: roles that SEE the link (default = access) }
     // `title` equals `label` for every page that has been reorganised; the rest keep the heading they always had (listed here so each difference is deliberate).
+    // perm: the minimum permission key (module.view) needed to access this section.
+    // Used by the permission-aware gating pass (admin.html _applyPermGating) in addition to
+    // the coarse role check. null = section has no granular permission (always accessible to its role tier).
     var sections = {
-        dashboardAdmin:    { label: 'Dashboard',        title: 'Command Center',            group: 'Insight',      access: ALL },
-        notificationsAdmin: { label: 'Notifications',   title: 'Notifications',             group: 'Insight',      access: ALL },   // every role; the server returns only that role's categories (docs-internal/notifications.md)
-        bookingsAdmin:     { label: 'Pipeline',         title: 'Event Bookings',            group: 'Bookings',     access: ALL },
-        calendarAdmin:     { label: 'Calendar',         title: 'Calendar',                  group: 'Bookings',     access: ALL },
-        eventsAdmin:       { label: 'Events',           title: 'Events Management',         group: 'Bookings',     access: ALL },
-        financeAdmin:      { label: 'Finance',          title: 'Financial Ledger',          group: 'Revenue',      access: OPS },
-        servicesAdmin:     { label: 'Services',         title: 'Services Catalogue',        group: 'Revenue',      access: ALL },
-        paymentSetupAdmin: { label: 'Payment Setup',    title: 'Payment Setup',             group: 'Revenue',      access: ADMIN },
-        inquiriesAdmin:    { label: 'Mailbox',           title: 'Mailbox',                   group: 'Email',        access: ALL },
-        newsletterAdmin:   { label: 'Newsletter',       title: 'Newsletter',                group: 'Outreach',     access: OPS },
-        socialAdmin:       { label: 'Social Media',     title: 'Social Media',              group: 'Outreach',     access: ALL },
-        contactAdmin:      { label: 'Contact Details',  title: 'Contact',                   group: 'Outreach',     access: ALL },
-        homeAdmin:         { label: 'Home Slider',      title: 'Home Slider',               group: 'Site Content', access: ALL },
-        aboutAdmin:        { label: 'About Me',         title: 'About Me',                  group: 'Site Content', access: ALL },
-        careerAdmin:       { label: 'Career',           title: 'Career Highlights',         group: 'Site Content', access: ALL },
-        accoladesAdmin:    { label: 'Accolades',        title: 'Accolades & Recognition',   group: 'Site Content', access: ALL },
-        footprintAdmin:    { label: 'Footprint',        title: 'Footprint',                 group: 'Site Content', access: ALL },
-        teamAdmin:         { label: 'Management Team',  title: 'Management Team',           group: 'Site Content', access: ALL },
-        testimonialsAdmin: { label: 'Testimonials',     title: 'Testimonials',              group: 'Site Content', access: ALL },
-        faqAdmin:          { label: 'FAQ',              title: 'FAQ',                       group: 'Site Content', access: ALL },
-        galleryAdmin:      { label: 'Gallery',          title: 'Gallery',                   group: 'Site Content', access: ALL },
-        businessAdmin:     { label: 'Business Profile', title: 'Business Profile',          group: 'Business',     access: OPS },   // managers read it (the API gives them a view-only profile)
-        policiesAdmin:     { label: 'Legal & Compliance', title: 'Legal & Compliance',      group: 'Business',     access: ALL },
-        brandingAdmin:     { label: 'Site Appearance',  title: 'Site Appearance',                  group: 'Public Site',  access: ADMIN },
-        integrationsAdmin: { label: 'Integrations',     title: 'Integrations',              group: 'System',       access: ADMIN },
-        usersAdmin:        { label: 'Users',            title: 'User Management',           group: 'People & Access', access: ADMIN },
-        rolesAdmin:        { label: 'Roles & Permissions', title: 'Roles & Permissions',    group: 'People & Access', access: ADMIN },
-        securityAdmin:     { label: 'Security & Audit', title: 'Security & Audit',          group: 'People & Access', access: ADMIN },
-        emailLogsAdmin:    { label: 'Delivery Log',     title: 'Delivery Log',              group: 'Email',        access: ADMIN },
-        emailBannersAdmin: { label: 'Email Banners',    title: 'Email Banners',             group: 'Email',        access: ADMIN }
+        dashboardAdmin:    { label: 'Dashboard',        title: 'Command Center',            group: 'Insight',      access: ALL,   perm: 'dashboard.view' },
+        notificationsAdmin: { label: 'Notifications',   title: 'Notifications',             group: 'Insight',      access: ALL,   perm: 'notifications.view' },   // every role; the server returns only that role's categories (docs-internal/notifications.md)
+        bookingsAdmin:     { label: 'Pipeline',         title: 'Event Bookings',            group: 'Bookings',     access: ALL,   perm: 'bookings.view' },
+        calendarAdmin:     { label: 'Calendar',         title: 'Calendar',                  group: 'Bookings',     access: ALL,   perm: 'calendar.view' },
+        eventsAdmin:       { label: 'Events',           title: 'Events Management',         group: 'Bookings',     access: ALL,   perm: 'events.view' },
+        financeAdmin:      { label: 'Finance',          title: 'Financial Ledger',          group: 'Revenue',      access: OPS,   perm: 'finance.view' },
+        servicesAdmin:     { label: 'Services',         title: 'Services Catalogue',        group: 'Revenue',      access: ALL,   perm: 'services.view' },
+        paymentSetupAdmin: { label: 'Payment Setup',    title: 'Payment Setup',             group: 'Revenue',      access: ADMIN, perm: 'payment-setup.view' },
+        inquiriesAdmin:    { label: 'Mailbox',           title: 'Mailbox',                   group: 'Email',        access: ALL,   perm: 'inquiries.view' },
+        newsletterAdmin:   { label: 'Newsletter',       title: 'Newsletter',                group: 'Outreach',     access: OPS,   perm: 'newsletter.view' },
+        socialAdmin:       { label: 'Social Media',     title: 'Social Media',              group: 'Outreach',     access: ALL,   perm: 'social.view' },
+        contactAdmin:      { label: 'Contact Details',  title: 'Contact',                   group: 'Outreach',     access: ALL,   perm: 'contact.view' },
+        homeAdmin:         { label: 'Home Slider',      title: 'Home Slider',               group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        aboutAdmin:        { label: 'About Me',         title: 'About Me',                  group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        careerAdmin:       { label: 'Career',           title: 'Career Highlights',         group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        accoladesAdmin:    { label: 'Accolades',        title: 'Accolades & Recognition',   group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        footprintAdmin:    { label: 'Footprint',        title: 'Footprint',                 group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        teamAdmin:         { label: 'Management Team',  title: 'Management Team',           group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        testimonialsAdmin: { label: 'Testimonials',     title: 'Testimonials',              group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        faqAdmin:          { label: 'FAQ',              title: 'FAQ',                       group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        galleryAdmin:      { label: 'Gallery',          title: 'Gallery',                   group: 'Site Content', access: ALL,   perm: 'site-content.view' },
+        businessAdmin:     { label: 'Business Profile', title: 'Business Profile',          group: 'Business',     access: OPS,   perm: 'business-profile.view' },   // managers read it (the API gives them a view-only profile)
+        policiesAdmin:     { label: 'Legal & Compliance', title: 'Legal & Compliance',      group: 'Business',     access: ALL,   perm: 'legal.view' },
+        brandingAdmin:     { label: 'Site Appearance',  title: 'Site Appearance',                  group: 'Public Site',  access: ADMIN, perm: 'branding.view' },
+        integrationsAdmin: { label: 'Integrations',     title: 'Integrations',              group: 'System',       access: ADMIN, perm: 'integrations.view' },
+        usersAdmin:        { label: 'Users',            title: 'User Management',           group: 'People & Access', access: ADMIN, perm: 'users.view' },
+        rolesAdmin:        { label: 'Roles & Permissions', title: 'Roles & Permissions',    group: 'People & Access', access: ADMIN, perm: 'roles.view' },
+        securityAdmin:     { label: 'Security & Audit', title: 'Security & Audit',          group: 'People & Access', access: ADMIN, perm: 'security.view' },
+        emailLogsAdmin:    { label: 'Delivery Log',     title: 'Delivery Log',              group: 'Email',        access: ADMIN, perm: 'email-logs.view' },
+        emailBannersAdmin: { label: 'Email Banners',    title: 'Email Banners',             group: 'Email',        access: ADMIN, perm: 'email-banners.view' }
     };
 
     // old page id -> the id that now holds that content. Used by switchTab, the remembered-section restore and admNav.go, so a stale
@@ -75,6 +78,17 @@
         var s = sections[resolve(id)];
         return !s || (s.sidebar || s.access).indexOf(role) >= 0;
     }
+    // Granular permission check: returns false when the section has a `perm` key and the
+    // permSet (a Set<string> from /api/admin/me/permissions) does not contain it.
+    // Administrators always pass (they have '*'). An unknown section (no registry entry) passes.
+    function canAccessByPerm(permSet, id) {
+        var s = sections[resolve(id)];
+        if (!s || !s.perm) return true;
+        if (!permSet || typeof permSet.has !== 'function') return true; // not loaded yet — permissive
+        return permSet.has(s.perm);
+    }
+    // Return the view permission key for a section, or null.
+    function permOf(id) { var s = sections[resolve(id)]; return s ? (s.perm || null) : null; }
     function titleOf(id) { var s = sections[resolve(id)]; return s ? s.label : ''; }
 
     // ── browser behaviour ──────────────────────────────────────────────────────────────────────────────────────────
@@ -143,5 +157,5 @@
         return { applyRole: applyRole, go: go, setTitle: setTitle };
     }
 
-    return { sections: sections, aliases: aliases, resolve: resolve, canAccess: canAccess, inSidebar: inSidebar, titleOf: titleOf, runtime: runtime, ALL: ALL, OPS: OPS, ADMIN: ADMIN };
+    return { sections: sections, aliases: aliases, resolve: resolve, canAccess: canAccess, canAccessByPerm: canAccessByPerm, permOf: permOf, inSidebar: inSidebar, titleOf: titleOf, runtime: runtime, ALL: ALL, OPS: OPS, ADMIN: ADMIN };
 });

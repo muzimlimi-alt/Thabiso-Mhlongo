@@ -478,6 +478,13 @@ class NotificationService {
                         // Never show full-screen error overlays for background API requests.
                         // Only show toast notifications, except for expected auth/session checks or debug requests.
                         if (!isSessionOrDebug && response.status >= 400) {
+                            // Suppress 403 toasts for background auto-loads (dashboard tiles, section
+                            // loaders on boot). Callers pass { silentOnForbidden: true }, or the boot
+                            // flag window._adminSilentForbidden is set during page initialisation.
+                            const opts = args[1] || {};
+                            if (response.status === 403 && (opts.silentOnForbidden || window._adminSilentForbidden)) {
+                                return response;
+                            }
                             response.clone().json().then(data => {
                                 let msg = data && (data.message || data.error);
                                 if (!msg) {
@@ -516,6 +523,8 @@ class NotificationService {
                 const { isApi, isSessionOrDebug } = checkUrl(settings.url);
                 if (isApi) {
                     if (!isSessionOrDebug && jqxhr.status >= 400) {
+                        // Suppress 403 toasts for silent background loads
+                        if (jqxhr.status === 403 && (bypass || window._adminSilentForbidden)) return;
                         let msg = "";
                         try {
                             const data = JSON.parse(jqxhr.responseText);

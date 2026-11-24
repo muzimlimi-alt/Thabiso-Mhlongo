@@ -9796,7 +9796,7 @@
             if (window.atlAppearance && window.atlAppearance.syncFromServer) window.atlAppearance.syncFromServer();
 
             // Fetch granular permissions for dynamic UI gating (RBAC Phase 5)
-            fetch('/api/admin/me/permissions', { credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } })
+            const permPromise = fetch('/api/admin/me/permissions', { credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } })
                 .then(function(r) { return r.json(); })
                 .then(function(d) {
                     if (d.success) {
@@ -9806,12 +9806,64 @@
                         window.currentUserPermissions = new Set();
                         window.currentUserBaseRole = effectiveRole;
                     }
+                    // Run permission-based nav/dashboard gating pass now that we have the set
+                    if (typeof window._applyPermGating === 'function') window._applyPermGating();
                 })
                 .catch(function() { window.currentUserPermissions = new Set(); window.currentUserBaseRole = effectiveRole; });
+            return permPromise;
         }
         window.can = function(key) {
             if (window.currentUserRole === 'administrator') return true;
             return window.currentUserPermissions ? window.currentUserPermissions.has(key) : false;
+        };
+
+        // Permission-based nav gating: hides nav items and dashboard stat cards the user
+        // lacks view permission for — runs AFTER window.currentUserPermissions is populated.
+        window._applyPermGating = function() {
+            var nav = window.ADMIN_NAV;
+            var perms = window.currentUserPermissions;
+            if (!nav || !perms) return;
+            var list = document.querySelector('.admin-sidebar');
+            if (list) {
+                [].forEach.call(list.querySelectorAll('a.tm-nav-link'), function(a) {
+                    var id = (a.getAttribute('href') || '').replace('#', '');
+                    // Hide nav item when user lacks the section's view permission
+                    if (!nav.canAccessByPerm(perms, id)) {
+                        var li = a.closest('li');
+                        if (li) { li.style.display = 'none'; li.setAttribute('data-perm-hidden', '1'); }
+                    }
+                });
+                // Hide any group that now has all children hidden
+                [].forEach.call(list.querySelectorAll('li.atl-nav-group'), function(g) {
+                    var kids = g.querySelectorAll('.atl-nav-sub > li');
+                    if (kids.length && [].every.call(kids, function(li) { return li.style.display === 'none'; })) {
+                        g.style.display = 'none';
+                        g.setAttribute('data-perm-hidden', '1');
+                    }
+                });
+                // Hide section-label headings that now have nothing below them
+                var items = [].slice.call(list.children);
+                items.forEach(function(li, i) {
+                    if (!li.classList.contains('sh-nav-label')) return;
+                    var any = false;
+                    for (var j = i + 1; j < items.length && !items[j].classList.contains('sh-nav-label'); j++) {
+                        if (items[j].style.display !== 'none') { any = true; break; }
+                    }
+                    if (!any) { li.style.display = 'none'; li.setAttribute('data-perm-hidden', '1'); }
+                });
+            }
+            // Hide dashboard stat cards the user cannot access
+            [].forEach.call(document.querySelectorAll('[id^="dashStat-"]'), function(el) {
+                var sectionId = el.id.replace('dashStat-', '');
+                var card = el.closest('.db-stat-card');
+                if (card && !nav.canAccessByPerm(perms, sectionId)) card.style.display = 'none';
+            });
+        };
+
+        // Convenience: run a loader only when the user has the named permission.
+        // fn is called with no arguments; perm=null means always run.
+        window._pLoad = function(perm, fn) {
+            if (!perm || window.can(perm)) { try { fn(); } catch(e) { console.error(e); } }
         };
 
         // ==========================================
@@ -9835,8 +9887,9 @@
                 }
 
                 if (result.success) {
-                    // Authenticated
-                    applyRoleGating(result.role);
+                    // Authenticated — show UI immediately, then wait for permissions before data loads
+                    window._adminSilentForbidden = true;  // suppress 403 toasts during boot
+                    const _permP = applyRoleGating(result.role);
                     startAdminHeartbeat();
 
                     document.getElementById('loginSection').style.display = 'none';
@@ -9848,29 +9901,33 @@
                     if(navArrows) navArrows.style.display = '';
                     const adminFooter = document.getElementById('adminFooter');
                     if(adminFooter) adminFooter.style.display = 'block';
-                    
-                    // Trigger data loads here
-                    startDashboardLoads();
-                    if (typeof fetchHomeSlider === 'function') fetchHomeSlider();
-                    loadAboutData();
-                    loadSocialData();
-                    renderEventsList();
-                    // renderCareerList(); // Remove crashing undefined function call
-                    loadContactData();
-                    loadInquiries();
-                    loadBookings();
-                    loadHighlights();
-                    loadFootprint();
-                    loadTeam();
-                    if (typeof window.loadAccolades === 'function') window.loadAccolades();
-                    loadTestimonials();
-                    loadGallery();
-                    renderSubscribersList();
-                    loadSubscriberStats();
-                    refreshAudienceCount();
-                    loadDraftsList();
-                    loadScheduledList();
-                    if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+
+                    // Start permission-gated data loads after permissions are resolved
+                    (_permP || Promise.resolve()).then(function() {
+                        startDashboardLoads();
+                        window._pLoad('site-content.view', function() { if (typeof fetchHomeSlider === 'function') fetchHomeSlider(); });
+                        window._pLoad('site-content.view', loadAboutData);
+                        window._pLoad('social.view',       loadSocialData);
+                        window._pLoad('events.view',       renderEventsList);
+                        window._pLoad('contact.view',      loadContactData);
+                        window._pLoad('inquiries.view',    loadInquiries);
+                        window._pLoad('bookings.view',     loadBookings);
+                        window._pLoad('site-content.view', loadHighlights);
+                        window._pLoad('site-content.view', loadFootprint);
+                        window._pLoad('site-content.view', loadTeam);
+                        window._pLoad('site-content.view', function() { if (typeof window.loadAccolades === 'function') window.loadAccolades(); });
+                        window._pLoad('site-content.view', loadTestimonials);
+                        window._pLoad('site-content.view', loadGallery);
+                        window._pLoad('newsletter.view',   renderSubscribersList);
+                        window._pLoad('newsletter.view',   loadSubscriberStats);
+                        window._pLoad('newsletter.view',   refreshAudienceCount);
+                        window._pLoad('newsletter.view',   loadDraftsList);
+                        window._pLoad('newsletter.view',   loadScheduledList);
+                        if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+                    }).finally(function() {
+                        // Lift 403 suppression after a grace period (handles any slow loaders)
+                        setTimeout(function() { window._adminSilentForbidden = false; }, 3000);
+                    });
 
                     // Force password change on first login
                     if (sessionStorage.getItem('admin_force_password_change') === '1') {
@@ -9958,8 +10015,9 @@
                 if (result.success) {
                     btn.innerText = 'COME THROUGH...';
 
-                    // Apply role-based UI gating immediately (no reload needed).
-                    applyRoleGating(result.role);
+                    // Apply role-based UI gating immediately, suppress 403s during boot
+                    window._adminSilentForbidden = true;
+                    const _loginPermP = applyRoleGating(result.role);
                     startAdminHeartbeat();
 
                     // Persist or clear email based on Remember Me
@@ -9984,26 +10042,31 @@
                     const _adminFooter = document.getElementById('adminFooter');
                     if (_adminFooter) _adminFooter.style.display = 'block';
 
-                    startDashboardLoads();   // the cards + the preloader while they fill
-                    if (typeof fetchHomeSlider === 'function') fetchHomeSlider();
-                    loadAboutData();
-                    loadSocialData();
-                    renderEventsList();
-                    loadContactData();
-                    loadInquiries();
-                    loadBookings();
-                    loadHighlights();
-                    loadFootprint();
-                    loadTeam();
-                    if (typeof window.loadAccolades === 'function') window.loadAccolades();
-                    loadTestimonials();
-                    loadGallery();
-                    renderSubscribersList();
-                    loadSubscriberStats();
-                    refreshAudienceCount();
-                    loadDraftsList();
-                    loadScheduledList();
-                    if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+                    // Wait for permissions before starting permission-gated data loads
+                    (_loginPermP || Promise.resolve()).then(function() {
+                        startDashboardLoads();   // the cards + the preloader while they fill
+                        window._pLoad('site-content.view', function() { if (typeof fetchHomeSlider === 'function') fetchHomeSlider(); });
+                        window._pLoad('site-content.view', loadAboutData);
+                        window._pLoad('social.view',       loadSocialData);
+                        window._pLoad('events.view',       renderEventsList);
+                        window._pLoad('contact.view',      loadContactData);
+                        window._pLoad('inquiries.view',    loadInquiries);
+                        window._pLoad('bookings.view',     loadBookings);
+                        window._pLoad('site-content.view', loadHighlights);
+                        window._pLoad('site-content.view', loadFootprint);
+                        window._pLoad('site-content.view', loadTeam);
+                        window._pLoad('site-content.view', function() { if (typeof window.loadAccolades === 'function') window.loadAccolades(); });
+                        window._pLoad('site-content.view', loadTestimonials);
+                        window._pLoad('site-content.view', loadGallery);
+                        window._pLoad('newsletter.view',   renderSubscribersList);
+                        window._pLoad('newsletter.view',   loadSubscriberStats);
+                        window._pLoad('newsletter.view',   refreshAudienceCount);
+                        window._pLoad('newsletter.view',   loadDraftsList);
+                        window._pLoad('newsletter.view',   loadScheduledList);
+                        if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+                    }).finally(function() {
+                        setTimeout(function() { window._adminSilentForbidden = false; }, 3000);
+                    });
 
                     if (sessionStorage.getItem('admin_force_password_change') === '1') {
                         const overlay = document.getElementById('forcePasswordChangeOverlay');
@@ -13134,8 +13197,42 @@
         // A page that moved keeps working under its old id (js/admin/nav-config.js aliases), then the role check
         sectionId = window.ADMIN_NAV.resolve(sectionId);
         const role = window.currentUserRole || 'manager';
-        if (!window.ADMIN_NAV.canAccess(role, sectionId)) {
-            window.notificationService && window.notificationService.showError('Access denied: You do not have permission to view this section.');
+        const roleBlocked = !window.ADMIN_NAV.canAccess(role, sectionId);
+        const permBlocked = !roleBlocked && window.currentUserPermissions &&
+                            !window.ADMIN_NAV.canAccessByPerm(window.currentUserPermissions, sectionId);
+        if (roleBlocked || permBlocked) {
+            // Show a clean Access Denied panel inside the target section instead of redirecting.
+            // This avoids error toasts for navigation attempts and gives the user a clear message.
+            var target = document.getElementById(sectionId);
+            if (target) {
+                var denied = document.getElementById('_accessDeniedPanel');
+                if (!denied) {
+                    denied = document.createElement('div');
+                    denied.id = '_accessDeniedPanel';
+                    denied.style.cssText = 'display:none;';
+                    document.body.appendChild(denied);
+                }
+                denied.innerHTML =
+                    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+                    'min-height:40vh;text-align:center;padding:48px 24px;gap:16px;">' +
+                    '<i class="fa-solid fa-ban" style="font-size:48px;color:var(--atl-muted);"></i>' +
+                    '<h2 style="font-size:1.4rem;font-weight:600;color:var(--text-primary);margin:0;">Access Denied</h2>' +
+                    '<p style="color:var(--atl-muted);max-width:380px;margin:0;line-height:1.6;">' +
+                    'Your account does not have permission to access this section. ' +
+                    'Contact your administrator if you need access.</p>' +
+                    '<button type="button" onclick="window.admNav.go(\'dashboardAdmin\')" ' +
+                    'class="atl-btn atl-btn--ghost" style="margin-top:8px;">' +
+                    '<i class="fa-solid fa-arrow-left"></i> Return to Dashboard</button>' +
+                    '</div>';
+                // Show the section with the access-denied content
+                document.querySelectorAll('.admin-section').forEach(function(s) { s.style.display = 'none'; });
+                target.style.display = 'block';
+                target.innerHTML = denied.innerHTML;
+                var mainEl = document.querySelector('.tm-admin-main');
+                if (mainEl) mainEl.scrollTop = 0;
+                window.admNav.setTitle(sectionId);
+                return;
+            }
             sectionId = 'dashboardAdmin';
         }
 

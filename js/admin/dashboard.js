@@ -13,33 +13,41 @@
    of which physical file they end up in. */
 
     async function loadDashboardKPIs() {
+        // Map each dashboard stat tile to the permission key that guards its data endpoint.
+        // If the user lacks the permission, the tile is hidden and no request is made.
         const tiles = {
-            homeAdmin:         { endpoint: '/api/admin/home-slider',              handler: arr => arr.length },
-            aboutAdmin:        { endpoint: '/api/admin/about-me',                handler: obj => obj && obj.image_path ? 'Set' : '-' },
-            careerAdmin:       { endpoint: '/api/public/highlights',             handler: arr => arr.length },
-            galleryAdmin:      { endpoint: '/api/public/gallery',                handler: arr => arr.length },
-            socialAdmin:       { endpoint: '/api/admin/social_links',            handler: arr => arr.filter(s => s.is_active).length },
-            eventsAdmin:       { endpoint: '/api/admin/events',                  handler: arr => arr.filter(e => e.event_status === 'upcoming').length },
-            contactAdmin:      { endpoint: '/api/public/contact_info',           handler: obj => (obj && obj.email) ? 'Configured' : '-' },
-            inquiriesAdmin:    { endpoint: '/api/admin/inquiries',               handler: d => (d && d.counts) ? d.counts.unread : 0 },
-            bookingsAdmin:     { endpoint: '/api/admin/bookings/full',           handler: arr => arr.filter(b => b.status === 'PENDING').length },
-            calendarAdmin:     { endpoint: '/api/admin/calendar/events',         handler: arr => arr.filter(ev => ev.start && new Date(ev.start) > new Date()).length },
-            financeAdmin:      { endpoint: '/api/admin/financials/stats',        handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '-' },
-            servicesAdmin:     { endpoint: '/api/admin/services',                handler: arr => arr.filter(s => s.is_active !== 0).length },
-            policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '-' },
-            emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',      handler: res => res.total || 0 },
-            securityAdmin:     { endpoint: '/api/admin/audit_log?limit=500',     handler: res => (res.logs || []).length },
-            usersAdmin:        { endpoint: '/api/admin/users',                   handler: arr => arr.length },
-            brandingAdmin:     { endpoint: '/api/public/branding',               handler: b => (b && (b.primary_color || b.site_logo)) ? 'Custom' : 'Default' }
+            homeAdmin:         { endpoint: '/api/admin/home-slider',              handler: arr => arr.length,                                                       perm: 'site-content.view' },
+            aboutAdmin:        { endpoint: '/api/admin/about-me',                 handler: obj => obj && obj.image_path ? 'Set' : '-',                              perm: 'site-content.view' },
+            careerAdmin:       { endpoint: '/api/public/highlights',              handler: arr => arr.length,                                                       perm: 'site-content.view' },
+            galleryAdmin:      { endpoint: '/api/public/gallery',                 handler: arr => arr.length,                                                       perm: 'site-content.view' },
+            socialAdmin:       { endpoint: '/api/admin/social_links',             handler: arr => arr.filter(s => s.is_active).length,                              perm: 'social.view' },
+            eventsAdmin:       { endpoint: '/api/admin/events',                   handler: arr => arr.filter(e => e.event_status === 'upcoming').length,             perm: 'events.view' },
+            contactAdmin:      { endpoint: '/api/public/contact_info',            handler: obj => (obj && obj.email) ? 'Configured' : '-',                          perm: 'contact.view' },
+            inquiriesAdmin:    { endpoint: '/api/admin/inquiries',                handler: d => (d && d.counts) ? d.counts.unread : 0,                              perm: 'inquiries.view' },
+            bookingsAdmin:     { endpoint: '/api/admin/bookings/full',            handler: arr => arr.filter(b => b.status === 'PENDING').length,                   perm: 'bookings.view' },
+            calendarAdmin:     { endpoint: '/api/admin/calendar/events',          handler: arr => arr.filter(ev => ev.start && new Date(ev.start) > new Date()).length, perm: 'calendar.view' },
+            financeAdmin:      { endpoint: '/api/admin/financials/stats',         handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '-', perm: 'finance.view' },
+            servicesAdmin:     { endpoint: '/api/admin/services',                 handler: arr => arr.filter(s => s.is_active !== 0).length,                        perm: 'services.view' },
+            policiesAdmin:     { endpoint: '/api/admin/policies',                 handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '-', perm: 'legal.view' },
+            emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',       handler: res => res.total || 0,                                                   perm: 'email-logs.view' },
+            securityAdmin:     { endpoint: '/api/admin/audit_log?limit=500',      handler: res => (res.logs || []).length,                                          perm: 'security.view' },
+            usersAdmin:        { endpoint: '/api/admin/users',                    handler: arr => arr.length,                                                       perm: 'users.view' },
+            brandingAdmin:     { endpoint: '/api/public/branding',                handler: b => (b && (b.primary_color || b.site_logo)) ? 'Custom' : 'Default',    perm: 'branding.view' }
         };
 
-        const fetchPromises = Object.entries(tiles).map(async ([id, { endpoint, handler }]) => {
+        const fetchPromises = Object.entries(tiles).map(async ([id, { endpoint, handler, perm }]) => {
+            const el = document.getElementById('dashStat-' + id);
+            const card = el && el.closest('.db-stat-card');
+            // Skip fetch and hide card when user lacks the required permission
+            if (perm && window.can && !window.can(perm)) {
+                if (card) card.style.display = 'none';
+                return;
+            }
             try {
-                const res = await fetch(endpoint, { credentials: 'same-origin' });
+                const res = await fetch(endpoint, { credentials: 'same-origin', silentOnForbidden: true });
                 if (!res.ok) throw new Error('Failed');
                 const data = await res.json();
                 const value = handler(data);
-                const el = document.getElementById('dashStat-' + id);
                 if (el) el.textContent = value;
                 // Update aria label
                 const tile = el && el.closest('.dashboard-tile');
@@ -48,19 +56,20 @@
                     tile.setAttribute('aria-label', label);
                 }
             } catch (e) {
-                const el = document.getElementById('dashStat-' + id);
                 if (el) el.textContent = '-';
             }
         });
 
         await Promise.allSettled(fetchPromises);
 
-        // Needs Action count
-        fetch('/api/admin/bookings/full', { credentials: 'same-origin' }).then(r => r.json()).then(data => {
-            const count = Array.isArray(data) ? data.filter(bookingNeedsAction).length : 0;
-            const el = document.getElementById('dashNeedsActionCount');
-            if (el) el.textContent = count > 0 ? count + ' need action' : 'All clear';
-        }).catch(() => {});
+        // Needs Action count — only if bookings are accessible
+        if (!window.can || window.can('bookings.view')) {
+            fetch('/api/admin/bookings/full', { credentials: 'same-origin', silentOnForbidden: true }).then(r => r.json()).then(data => {
+                const count = Array.isArray(data) ? data.filter(bookingNeedsAction).length : 0;
+                const el = document.getElementById('dashNeedsActionCount');
+                if (el) el.textContent = count > 0 ? count + ' need action' : 'All clear';
+            }).catch(() => {});
+        }
     }
 
     var _dbPeriod      = '30d';
@@ -162,7 +171,8 @@
     });
 
     function dbLoadSocialKPIs() {
-        fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin' })
+        if (window.can && !window.can('dashboard.view')) return;
+        fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin', silentOnForbidden: true })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
                 if (!data || !data.success || !data.kpis) return;
@@ -608,6 +618,7 @@
 
     // ── 9. Today's schedule (bookings + date holds + public events) ─────────────
     function loadTodaysSchedule() {
+        if (window.can && !window.can('dashboard.view')) return Promise.resolve();
         var list    = document.getElementById('dbScheduleList');
         var spinner = document.getElementById('dbScheduleSpinner');
         var empty   = document.getElementById('dbScheduleEmpty');
@@ -672,9 +683,10 @@
     // Returns a promise that settles once the Overview cards are in (the charts below keep filling on their own), so the post-login
     // preloader can wait for it (admin.html startDashboardLoads). window.__dbAnalyticsStarted stops the start-up block below loading it twice.
     function loadAnalyticsDashboard() {
-        // Only run if the dashboard section is visible
+        // Only run if the dashboard section is visible and user has permission
         var dash = document.getElementById('dashboardAdmin');
         if (!dash || dash.style.display === 'none') return Promise.resolve();
+        if (window.can && !window.can('dashboard.view')) return Promise.resolve();
         window.__dbAnalyticsStarted = true;
 
         // The tabs work the date range out first (and fill Overview / Finance); then every card below loads for that same range.
