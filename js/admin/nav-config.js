@@ -94,7 +94,7 @@
     // ── browser behaviour ──────────────────────────────────────────────────────────────────────────────────────────
     function runtime(win) {
         var doc = win.document;
-        function hide(el) { el.style.display = 'none'; el.setAttribute('data-role-hidden', '1'); }
+        function hide(el) { el.style.setProperty('display', 'none', 'important'); el.setAttribute('data-role-hidden', '1'); }
         function hidden(el) { return el.getAttribute('data-role-hidden') === '1'; }
 
         // Show / hide everything the role cannot use: sidebar leaves, then any group or label that is left with nothing under it
