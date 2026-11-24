@@ -206,6 +206,14 @@
 :root[data-site-theme="bone"] .tm-newsletter > .tm-container > .tm-newsletter__inner > p {
   color: var(--text-secondary);
 }
+:root[data-site-theme="bone"] .tm-newsletter-label { color: var(--text-muted); }
+:root[data-site-theme="bone"] .tm-newsletter-label__hint { color: var(--text-muted); }
+:root[data-site-theme="bone"] .tm-newsletter-consent .bk-checkbox-label {
+  color: var(--text-secondary) !important;
+}
+:root[data-site-theme="bone"] .tm-newsletter__hint {
+  color: var(--text-muted) !important;
+}
 
 /* ---------- TESTIMONIALS ---------- */
 :root[data-site-theme="bone"] .tm-testimonials { background: var(--bg-section); }
@@ -229,6 +237,13 @@
 }
 :root[data-site-theme="bone"] .tm-footer__brand-name { color: var(--text-primary); }
 :root[data-site-theme="bone"] .tm-footer__brand-name em { color: var(--y-base); }
+:root[data-site-theme="bone"] .tm-footer__tagline { color: var(--text-secondary); }
+:root[data-site-theme="bone"] #footerSocialIcons a,
+:root[data-site-theme="bone"] #footerSocialIcons .social-icon-wrapper {
+  border-color: var(--border-default);
+  color: var(--text-muted);
+}
+:root[data-site-theme="bone"] .tm-footer__col a { color: var(--text-secondary); }
 :root[data-site-theme="bone"] .tm-footer__copy { color: var(--text-secondary); }
 
 /* ---------- BUTTONS ---------- */
@@ -257,17 +272,23 @@
 /* ---------- FORM INPUTS (global) ---------- */
 :root[data-site-theme="bone"] .form-control,
 :root[data-site-theme="bone"] .tm-nl-input {
-  background: var(--bg-page) !important;
+  background-color: var(--bg-page) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-default) !important;
 }
 :root[data-site-theme="bone"] .form-control:focus,
 :root[data-site-theme="bone"] .tm-nl-input:focus {
+  background-color: var(--bg-page) !important;
   border-color: var(--y-base) !important;
   box-shadow: 0 0 0 3px var(--y-muted) !important;
 }
 :root[data-site-theme="bone"] .form-control::placeholder,
 :root[data-site-theme="bone"] .tm-nl-input::placeholder { color: var(--text-muted); }
+:root[data-site-theme="bone"] select.form-control option,
+:root[data-site-theme="bone"] select.tm-nl-input option {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
 
 /* ---------- MODAL BACKDROPS ---------- */
 :root[data-site-theme="bone"] .modal-backdrop.in { background: rgba(26,24,22,0.5) !important; }
@@ -275,6 +296,10 @@
 /* ---------- BOOKING DRAWER ---------- */
 :root[data-site-theme="bone"] .bk-drawer__panel { background: var(--bg-page) !important; }
 :root[data-site-theme="bone"] .bk-step__title { color: var(--text-primary); }
+:root[data-site-theme="bone"] .bk-dur-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
 
 /* ---------- TRACKING DRAWER ---------- */
 :root[data-site-theme="bone"] .trk-drawer__panel { background: var(--bg-page) !important; }
