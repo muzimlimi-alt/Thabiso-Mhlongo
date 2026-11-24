@@ -9823,6 +9823,10 @@
             var nav = window.ADMIN_NAV;
             var perms = window.currentUserPermissions;
             if (!nav || !perms) return;
+            // Administrators always have full access — skip nav/section/card gating entirely.
+            // The data-requires-perm button sweep below is still run but is a no-op for admin
+            // because window.can() always returns true for the administrator role.
+            if (window.currentUserRole === 'administrator') return;
             var list = document.querySelector('.admin-sidebar');
             if (list) {
                 [].forEach.call(list.querySelectorAll('a.tm-nav-link'), function(a) {
@@ -9874,8 +9878,17 @@
 
         // Convenience: run a loader only when the user has the named permission.
         // fn is called with no arguments; perm=null means always run.
+        // If fn is async (returns a Promise), rejections are caught here so they never
+        // reach the global unhandledrejection handler and silently trigger the error toast.
         window._pLoad = function(perm, fn) {
-            if (!perm || window.can(perm)) { try { fn(); } catch(e) { console.error(e); } }
+            if (!perm || window.can(perm)) {
+                try {
+                    var _r = fn();
+                    if (_r && typeof _r.catch === 'function') {
+                        _r.catch(function(e) { console.error('[_pLoad]', fn.name || perm, e); });
+                    }
+                } catch(e) { console.error('[_pLoad sync]', fn.name || perm, e); }
+            }
         };
 
         // ==========================================
@@ -9936,6 +9949,10 @@
                         window._pLoad('newsletter.view',   loadDraftsList);
                         window._pLoad('newsletter.view',   loadScheduledList);
                         if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+                    }).catch(function(e) {
+                        // Absorb any synchronous throw from the .then() body so it doesn't
+                        // escape as an unhandled rejection and trigger the global error toast.
+                        console.error('[boot] load chain error:', e);
                     }).finally(function() {
                         // Lift 403 suppression after a grace period (handles any slow loaders)
                         setTimeout(function() { window._adminSilentForbidden = false; }, 3000);
@@ -13210,7 +13227,9 @@
         sectionId = window.ADMIN_NAV.resolve(sectionId);
         const role = window.currentUserRole || 'manager';
         const roleBlocked = !window.ADMIN_NAV.canAccess(role, sectionId);
-        const permBlocked = !roleBlocked && window.currentUserPermissions &&
+        // Administrators always have full section access regardless of the permissions Set contents.
+        const permBlocked = !roleBlocked && role !== 'administrator' &&
+                            window.currentUserPermissions &&
                             !window.ADMIN_NAV.canAccessByPerm(window.currentUserPermissions, sectionId);
         if (roleBlocked || permBlocked) {
             // Show a clean Access Denied panel inside the target section instead of redirecting.
