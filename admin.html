@@ -9783,15 +9783,20 @@
             return all;
         }
 
-        function applyRoleGating(role) {
+        function applyRoleGating(role, baseRole) {
             const effectiveRole = role || 'manager';
+            // Custom roles (e.g. social_media_manager) are not in nav-config's access
+            // arrays. Use the base role (the system role the custom role was cloned from)
+            // for the coarse tier check so the sidebar shows the right sections.
+            const tierRole = baseRole || effectiveRole;
             window.currentUserRole = effectiveRole;
+            window.currentUserBaseRole = tierRole;
 
             document.body.className = document.body.className.replace(/\brole-\S+/g, '');
             document.body.classList.add('role-' + effectiveRole);
 
             // Which sidebar links, groups, headings, dashboard tiles and account-menu items this role sees: js/admin/nav-config.js.
-            window.admNav.applyRole(effectiveRole);
+            window.admNav.applyRole(tierRole);
             // The account's saved look (Finish / accent / Presence) from the server: the same on every machine this account signs in on (js/appearance.js).
             if (window.atlAppearance && window.atlAppearance.syncFromServer) window.atlAppearance.syncFromServer();
 
@@ -9914,7 +9919,7 @@
                 if (result.success) {
                     // Authenticated — show UI immediately, then wait for permissions before data loads
                     window._adminSilentForbidden = true;  // suppress 403 toasts during boot
-                    const _permP = applyRoleGating(result.role);
+                    const _permP = applyRoleGating(result.role, result.baseRole);
                     startAdminHeartbeat();
 
                     document.getElementById('loginSection').style.display = 'none';
@@ -9929,7 +9934,7 @@
 
                     // Start permission-gated data loads after permissions are resolved
                     (_permP || Promise.resolve()).then(function() {
-                        startDashboardLoads();
+                        window._pLoad('dashboard.view', startDashboardLoads);
                         window._pLoad('site-content.view', function() { if (typeof fetchHomeSlider === 'function') fetchHomeSlider(); });
                         window._pLoad('site-content.view', loadAboutData);
                         window._pLoad('social.view',       loadSocialData);
@@ -10046,7 +10051,7 @@
 
                     // Apply role-based UI gating immediately, suppress 403s during boot
                     window._adminSilentForbidden = true;
-                    const _loginPermP = applyRoleGating(result.role);
+                    const _loginPermP = applyRoleGating(result.role, result.baseRole);
                     startAdminHeartbeat();
 
                     // Persist or clear email based on Remember Me
@@ -13226,9 +13231,12 @@
         // A page that moved keeps working under its old id (js/admin/nav-config.js aliases), then the role check
         sectionId = window.ADMIN_NAV.resolve(sectionId);
         const role = window.currentUserRole || 'manager';
-        const roleBlocked = !window.ADMIN_NAV.canAccess(role, sectionId);
+        // Custom roles (e.g. social_media_manager) are not in nav-config's access
+        // arrays. Use the base role so the tier check matches the sidebar gating.
+        const tierRole = window.currentUserBaseRole || role;
+        const roleBlocked = !window.ADMIN_NAV.canAccess(tierRole, sectionId);
         // Administrators always have full section access regardless of the permissions Set contents.
-        const permBlocked = !roleBlocked && role !== 'administrator' &&
+        const permBlocked = !roleBlocked && tierRole !== 'administrator' &&
                             window.currentUserPermissions &&
                             !window.ADMIN_NAV.canAccessByPerm(window.currentUserPermissions, sectionId);
         if (roleBlocked || permBlocked) {
