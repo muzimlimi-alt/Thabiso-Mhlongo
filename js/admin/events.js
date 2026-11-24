@@ -131,15 +131,15 @@ async function renderEventsList(highlightId) {
                 <p class="evt-card-meta"><i class="fa-solid fa-location-dot" style="color:var(--atl-amber);"></i> ${displayVenue}</p>
               </div>
               <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openEvtEditDrawer(${item.event_id})" title="Edit event" aria-label="Edit event: ${displayTitle}">
+                ${(!window.can || window.can('events.edit')) ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openEvtEditDrawer(${item.event_id})" title="Edit event" aria-label="Edit event: ${displayTitle}">
                   <i class="fa-solid fa-pen"></i>
-                </button>
-                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-duplicate-btn" data-id="${item.event_id}" title="Duplicate event as draft" aria-label="Duplicate event: ${displayTitle} as draft">
+                </button>` : ''}
+                ${(!window.can || window.can('events.create')) ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-duplicate-btn" data-id="${item.event_id}" title="Duplicate event as draft" aria-label="Duplicate event: ${displayTitle} as draft">
                   <i class="fa-regular fa-copy"></i>
-                </button>
-                <button type="button" class="um-btn um-btn--danger um-btn--sm remove-events-action" data-id="${item.event_id}" title="Delete event" aria-label="Delete event: ${displayTitle}">
+                </button>` : ''}
+                ${(!window.can || window.can('events.delete')) ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-events-action" data-id="${item.event_id}" title="Delete event" aria-label="Delete event: ${displayTitle}">
                   <i class="fa-solid fa-trash-can"></i>
-                </button>
+                </button>` : ''}
               </div>
             </div>
           </div>

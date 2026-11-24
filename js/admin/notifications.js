@@ -470,8 +470,8 @@
             var tone = !it.is_active ? 'blue' : d < 0 ? 'clay' : d <= 30 ? 'orange' : d <= 90 ? 'blue' : 'green';
             var state = !it.is_active ? 'Not watched' : d < 0 ? 'Expired ' + Math.abs(d) + ' day(s) ago' : d === 0 ? 'Expires today' : d + ' day(s) left';
             var actions = it.read_only ? '<span class="ntf-muted">Edit in ' + esc(it.managed_in) + '</span>'
-                : '<button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" data-ntf-exp-edit="' + it.id + '">Edit</button>' +
-                  (role() === 'administrator' ? ' <button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" data-ntf-exp-del="' + it.id + '">Delete</button>' : '');
+                : ((!window.can || window.can('notifications.manage')) ? '<button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" data-ntf-exp-edit="' + it.id + '">Edit</button>' : '') +
+                  ((!window.can || window.can('notifications.manage')) && role() === 'administrator' ? ' <button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" data-ntf-exp-del="' + it.id + '">Delete</button>' : '');
             return '<tr><td data-label="Item">' + esc(it.name) + (it.notes ? '<br><span class="ntf-muted">' + esc(it.notes) + '</span>' : '') + '</td>' +
                 '<td data-label="Type">' + esc(it.kind_label) + '</td><td data-label="Reference">' + esc(it.reference || '') + '</td>' +
                 '<td data-label="Expires">' + esc(it.expiry_date) + '</td><td data-label="Status"><span class="ntf-dot ntf-dot--' + tone + '"></span> ' + esc(state) + '</td>' +

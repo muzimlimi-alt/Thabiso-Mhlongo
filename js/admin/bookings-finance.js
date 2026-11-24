@@ -68,8 +68,8 @@
                     <td>${bookingRef}</td>
                     <td style="font-weight:600;color: var(--atl-ink);">R ${parseFloat(e.amount).toLocaleString('en-ZA',{minimumFractionDigits:2})}</td>
                     <td style="white-space:nowrap;">
-                        <button class="atl-btn atl-btn--ghost" onclick="editExpense(${e.id})" style="padding:4px 8px;border-radius:4px;margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square" style="font-size:12px;color:var(--atl-blue);"></i></button>
-                        <button class="atl-btn atl-btn--danger" onclick="deleteExpense(${e.id})" style="background:rgba(248,113,113,0.15);color:var(--atl-clay);border:1px solid rgba(248,113,113,0.3);border-radius:4px;padding:4px 8px;" title="Delete"><i class="fa-solid fa-trash-can" style="font-size:12px;"></i></button>
+                        ${(!window.can || window.can('finance.edit')) ? `<button class="atl-btn atl-btn--ghost" onclick="editExpense(${e.id})" style="padding:4px 8px;border-radius:4px;margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square" style="font-size:12px;color:var(--atl-blue);"></i></button>` : ''}
+                        ${(!window.can || window.can('finance.delete')) ? `<button class="atl-btn atl-btn--danger" onclick="deleteExpense(${e.id})" style="background:rgba(248,113,113,0.15);color:var(--atl-clay);border:1px solid rgba(248,113,113,0.3);border-radius:4px;padding:4px 8px;" title="Delete"><i class="fa-solid fa-trash-can" style="font-size:12px;"></i></button>` : ''}
                     </td>
                 </tr>`;
             }).join(''));
@@ -485,7 +485,7 @@
                     + '<td style="text-align:right;font-weight:600;' + amtStyle + '">R ' + parseFloat(l.amount).toLocaleString('en-ZA',{minimumFractionDigits:2}) + '</td>'
                     + '<td style="color:var(--atl-muted);">' + (l.reference || '-') + '</td>'
                     + '<td>' + matchBadge + '</td>'
-                    + '<td style="white-space:nowrap;">' + matchBtn + ' <button class="atl-btn atl-btn--ghost" style="font-size:11px;padding:3px 6px;color:var(--atl-clay);" onclick="deleteBankLine(' + l.id + ')" title="Remove line"><i class="fa-solid fa-trash-can"></i></button></td>'
+                    + '<td style="white-space:nowrap;">' + matchBtn + ((!window.can || window.can('finance.delete')) ? ' <button class="atl-btn atl-btn--ghost" style="font-size:11px;padding:3px 6px;color:var(--atl-clay);" onclick="deleteBankLine(' + l.id + ')" title="Remove line"><i class="fa-solid fa-trash-can"></i></button>' : '') + '</td>'
                     + '</tr>';
             }).join(''));
         } catch(e) {

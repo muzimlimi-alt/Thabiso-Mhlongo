@@ -191,7 +191,7 @@
             +       '<p class="acl-card__meta">' + meta.join(' &middot; ') + '</p>'
             +     '</div>'
             +     '<div class="acl-card__actions">'
-            +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-edit-btn" data-id="' + id + '" title="Edit accolade" aria-label="Edit ' + title + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
+            +       (!window.can || window.can('site-content.edit') ? '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-edit-btn" data-id="' + id + '" title="Edit accolade" aria-label="Edit ' + title + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' : '')
             +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-more-btn" data-id="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-controls="aclMoreMenu" title="More actions" aria-label="More actions for ' + title + '"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>'
             +     '</div>'
             +   '</div></div>'
@@ -508,7 +508,7 @@
             + menuItem('up', 'fa-solid fa-arrow-up', 'Move up within ' + item.year, !canMove(item, -1))
             + menuItem('down', 'fa-solid fa-arrow-down', 'Move down within ' + item.year, !canMove(item, 1));
         if (item.is_public && state.sectionVisible) html += menuItem('view', 'fa-solid fa-arrow-up-right-from-square', 'View on the website');
-        if (isAdministrator()) {
+        if (!window.can || window.can('site-content.delete')) {
             html += '<div class="atl-actions-dropdown-sep" role="separator"></div>'
                 + menuItem('delete', 'fa-solid fa-trash-can', 'Delete…', false, 'atl-actions-dropdown-item--danger acl-delete-btn');
         }

@@ -669,14 +669,16 @@
             var name        = umDisplayName(u);
             var checked     = umTable.selected[u.id] ? ' checked' : '';
 
-            // Role: inline dropdown for others, static badge for self (you can't demote yourself here).
+            // Role: inline dropdown for others (edit perm), static badge for self or read-only viewers.
             var roleCell = isSelf
                 ? '<span class="um-role-badge um-role-badge--' + esc(role) + '">' + esc(roleLabel) + '</span>'
-                : '<select class="atl-input um-role-change" data-id="' + esc(u.id) + '" aria-label="Change role for ' + esc(name) + '" style="width:auto; background:var(--atl-card); color:var(--atl-ink); border-color:var(--atl-line); font-size:12px;">' +
-                      UM_ROLES.map(function(r) {
-                          return '<option value="' + esc(r.key) + '"' + (r.key === role ? ' selected' : '') + '>' + esc(r.name) + '</option>';
-                      }).join('') +
-                  '</select>';
+                : (!window.can || window.can('users.edit')
+                    ? '<select class="atl-input um-role-change" data-id="' + esc(u.id) + '" aria-label="Change role for ' + esc(name) + '" style="width:auto; background:var(--atl-card); color:var(--atl-ink); border-color:var(--atl-line); font-size:12px;">' +
+                          UM_ROLES.map(function(r) {
+                              return '<option value="' + esc(r.key) + '"' + (r.key === role ? ' selected' : '') + '>' + esc(r.name) + '</option>';
+                          }).join('') +
+                      '</select>'
+                    : '<span class="um-role-badge um-role-badge--' + esc(role) + '">' + esc(roleLabel) + '</span>');
 
             // Status: toggle switch for others, static badge for self. Pending overrides the "Active" label.
             var statusWord  = isSuspended ? 'Suspended' : (pending ? 'Pending' : 'Active');
@@ -718,8 +720,8 @@
                     (isSelf
                         ? '<span style="font-size:11px; color:var(--atl-muted-dim);">-</span>'
                         : (pending ? '<button class="um-icon-btn um-resend-btn" data-id="' + esc(u.id) + '" data-name="' + esc(u.email || u.username) + '" title="Resend invitation" aria-label="Resend invitation"><i class="fa-solid fa-paper-plane"></i></button>' : '') +
-                          '<button class="um-icon-btn um-edit-btn" data-id="' + esc(u.id) + '" title="Edit" aria-label="Edit user"><i class="fa-solid fa-pen"></i></button>' +
-                          '<button class="um-icon-btn um-icon-btn--danger um-del-btn" data-id="' + esc(u.id) + '" data-name="' + esc(u.email || u.username) + '" title="Delete" aria-label="Delete user"><i class="fa-solid fa-trash-can"></i></button>'
+                          (!window.can || window.can('users.edit') ? '<button class="um-icon-btn um-edit-btn" data-id="' + esc(u.id) + '" title="Edit" aria-label="Edit user"><i class="fa-solid fa-pen"></i></button>' : '') +
+                          (!window.can || window.can('users.delete') ? '<button class="um-icon-btn um-icon-btn--danger um-del-btn" data-id="' + esc(u.id) + '" data-name="' + esc(u.email || u.username) + '" title="Delete" aria-label="Delete user"><i class="fa-solid fa-trash-can"></i></button>' : '')
                     ) +
                 '</td>' +
             '</tr>';

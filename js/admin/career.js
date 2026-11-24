@@ -73,12 +73,8 @@ async function loadHighlights() {
                     <div class="atl-edit-card__desc">${descText}</div>
                   </div>
                   <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openCareerEditDrawer(${item.id})" title="Edit highlight" aria-label="Edit highlight">
-                      <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="um-btn um-btn--danger um-btn--sm remove-career-action" data-id="${item.id}" title="Delete highlight" aria-label="Delete highlight">
-                      <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openCareerEditDrawer(${item.id})" title="Edit highlight" aria-label="Edit highlight"><i class="fa-solid fa-pen"></i></button>` : '')}
+                    ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-career-action" data-id="${item.id}" title="Delete highlight" aria-label="Delete highlight"><i class="fa-solid fa-trash-can"></i></button>` : '')}
                   </div>
                 </div>
               </div>

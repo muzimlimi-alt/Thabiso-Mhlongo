@@ -3025,13 +3025,35 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   padding-left:4px;
 }
 .tm-footer__bottom{
-  display:flex; flex-wrap:wrap; gap:12px;
+  display:flex; flex-wrap:wrap; gap:10px 20px;
   justify-content:space-between; align-items:center;
   padding-top:32px;
   border-top:1px solid var(--border-low);
   font-size:.74rem;
   color:var(--text-muted);
   letter-spacing:.06em;
+}
+.tm-footer__copy{ color:var(--text-secondary); }
+.tm-footer__badge{ color:var(--text-muted); font-size:.74rem; }
+.tm-footer__badge a{
+  color:var(--text-muted);
+  text-decoration:none;
+  transition:color var(--t) var(--ease);
+}
+.tm-footer__badge a:hover,.tm-footer__badge a:focus{ color:var(--y-base); }
+.tm-footer__credit a{
+  color:var(--y-base);
+  text-decoration:none;
+  transition:color var(--t) var(--ease);
+}
+.tm-footer__credit a:hover,.tm-footer__credit a:focus{ color:var(--y-hover); }
+@media(max-width:576px){
+  .tm-footer__bottom{
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    gap:8px;
+  }
 }
 
 /* Back to top */

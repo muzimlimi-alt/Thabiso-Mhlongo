@@ -248,8 +248,8 @@ async function loadFootprint() {
                                 <h3 class="atl-edit-card__title">${safeName}</h3>
                             </div>
                             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm footprint-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
-                                <button type="button" class="um-btn um-btn--danger um-btn--sm footprint-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>
+                                ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm footprint-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>` : '')}
+                                ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm footprint-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>` : '')}
                             </div>
                         </div>
                     </div>

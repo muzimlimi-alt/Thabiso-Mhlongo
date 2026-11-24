@@ -93,10 +93,12 @@ async function loadTestimonials() {
                 : item.status === 'rejected'
                     ? '<span class="atl-badge atl-badge--cancelled">Rejected</span>'
                     : '<span class="atl-badge atl-badge--pending">Pending</span>';
-            var moderationBtns = item.status === 'pending'
-                ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-approve-btn" data-id="${item.id}" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>
+            var moderationBtns = (!window.can || window.can('site-content.manage'))
+                ? (item.status === 'pending'
+                    ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-approve-btn" data-id="${item.id}" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>
                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-reject-btn" data-id="${item.id}" title="Reject" style="color:var(--atl-clay);"><i class="fa-solid fa-xmark"></i></button>`
-                : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-retract-btn" data-id="${item.id}" title="${item.status === 'approved' ? 'Retract from public site (back to Pending Review)' : 'Move back to Pending Review'}" style="color:var(--atl-amber);"><i class="fa-solid fa-rotate-left"></i></button>`;
+                    : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-retract-btn" data-id="${item.id}" title="${item.status === 'approved' ? 'Retract from public site (back to Pending Review)' : 'Move back to Pending Review'}" style="color:var(--atl-amber);"><i class="fa-solid fa-rotate-left"></i></button>`)
+                : '';
             var html = `
                 <article class="atl-edit-card" data-id="${item.id}">
                     <div class="atl-card-inner">
@@ -109,8 +111,8 @@ async function loadTestimonials() {
                             </div>
                             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
                                 ${moderationBtns}
-                                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
-                                <button type="button" class="um-btn um-btn--danger um-btn--sm testimonial-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>
+                                ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>` : '')}
+                                ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm testimonial-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>` : '')}
                             </div>
                         </div>
                     </div>

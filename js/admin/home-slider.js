@@ -99,12 +99,8 @@ function renderHomeList(data) {
                 <div class="atl-edit-card__desc">${meta || 'Slider image'}</div>
               </div>
               <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openHomeEditDrawer(${item.id})" title="Edit slide" aria-label="Edit slide">
-                  <i class="fa-solid fa-pen"></i>
-                </button>
-                <button type="button" class="um-btn um-btn--danger um-btn--sm remove-home-btn" data-id="${item.id}" title="Remove slide" aria-label="Remove slide">
-                  <i class="fas fa-trash-alt"></i>
-                </button>
+                ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openHomeEditDrawer(${item.id})" title="Edit slide" aria-label="Edit slide"><i class="fa-solid fa-pen"></i></button>` : '')}
+                ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-home-btn" data-id="${item.id}" title="Remove slide" aria-label="Remove slide"><i class="fas fa-trash-alt"></i></button>` : '')}
               </div>
             </div>
           </div>

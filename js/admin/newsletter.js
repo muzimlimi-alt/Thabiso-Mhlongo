@@ -175,15 +175,11 @@ function injectSubscribers(dataArray) {
                 <td style="font-size: 12px; vertical-align: middle; border: none; white-space: nowrap;">${birthdayHtml}</td>
                 <td style="vertical-align: middle; border: none;">${statusHtml}</td>
                 <td style="vertical-align: middle; border: none; text-align: right; white-space: nowrap;">
-                    <button class="atl-btn atl-btn--ghost edit-subscriber-btn" data-id="${sub.subscriber_id}" title="Edit">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
+                    ${!window.can || window.can('newsletter.edit') ? `<button class="atl-btn atl-btn--ghost edit-subscriber-btn" data-id="${sub.subscriber_id}" title="Edit"><i class="fa-solid fa-pen"></i></button>` : ''}
                     <button class="atl-btn atl-btn--ghost toggle-subscriber-btn" data-id="${sub.subscriber_id}" data-current-status="${sub.status}" title="${toggleTitle}">
                         ${toggleAction}
                     </button>
-                    <button class="atl-btn atl-btn--danger delete-subscriber-btn" data-id="${sub.subscriber_id}" title="Delete">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
+                    ${!window.can || window.can('newsletter.delete') ? `<button class="atl-btn atl-btn--danger delete-subscriber-btn" data-id="${sub.subscriber_id}" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
                 </td>
             </tr>
         `;
@@ -1181,11 +1177,11 @@ const campaignsTable = new DataTable({
                 </td>
                 <td style="padding:10px 8px;vertical-align:middle;border:none;font-size:11px;color: var(--atl-muted);white-space:nowrap;">${dateStr}</td>
                 <td style="padding:10px 8px;vertical-align:middle;border:none;text-align:right;white-space:nowrap;">
-                    ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-edit-btn" data-id="${c.id}" style="margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
+                    ${isPending && (!window.can || window.can('newsletter.edit')) ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-edit-btn" data-id="${c.id}" style="margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
                     ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-cancel-btn" data-id="${c.id}" style="margin-right:4px;color:var(--atl-orange);border-color:rgba(255,152,0,0.4);" title="Cancel scheduled send"><i class="fa-solid fa-ban"></i> Cancel</button>` : ''}
                     ${c.display_status === 'sent' ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-delivery-log-btn" data-subject="${subj}" data-source="${c.source}" style="margin-right:4px;" title="View delivery log"><i class="fa-solid fa-list-check"></i></button>` : ''}
                     <button class="um-btn um-btn--primary um-btn--sm campaign-reuse-btn" data-id="${c.id}" data-source="${c.source}" style="margin-right:4px;" title="Load into composer"><i class="fa-solid fa-rotate-left"></i> Reuse</button>
-                    <button class="um-btn um-btn--ghost um-btn--sm campaign-delete-btn" data-id="${c.id}" data-source="${c.source}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                    ${!window.can || window.can('newsletter.delete') ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-delete-btn" data-id="${c.id}" data-source="${c.source}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
                 </td>
             </tr>`;
     },

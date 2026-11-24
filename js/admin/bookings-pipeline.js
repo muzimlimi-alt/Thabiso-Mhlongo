@@ -625,7 +625,7 @@
           <div class="atl-det-card" id="bk-client-card-${row.id}">
             <h5 class="atl-det-title" style="display:flex;align-items:center;justify-content:space-between;">
               <span><i class="fa-solid fa-user"></i>Client</span>
-              ${(window.currentUserRole === 'administrator' || window.currentUserRole === 'manager')
+              ${(!window.can || window.can('bookings.edit'))
                 ? `<button type="button" class="atl-btn atl-btn--ghost bk-client-edit-toggle" data-id="${row.id}" title="Correct the client's details" style="font-size:11px;padding:3px 9px;">
                      <i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>`
                 : ''}
@@ -677,7 +677,7 @@
           <div class="atl-det-card" id="bk-event-card-${row.id}">
             <h5 class="atl-det-title" style="display:flex;align-items:center;justify-content:space-between;">
               <span><i class="fa-solid fa-calendar-day"></i>Event</span>
-              ${(window.currentUserRole === 'administrator' || window.currentUserRole === 'manager')
+              ${(!window.can || window.can('bookings.edit'))
                 ? `<button type="button" class="atl-btn atl-btn--ghost bk-event-edit-toggle" data-id="${row.id}" title="Correct the event's name, type, date or time" style="font-size:11px;padding:3px 9px;">
                      <i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>`
                 : ''}
@@ -858,7 +858,7 @@
                 <i class="fa-solid fa-link"></i> Link
               </button>
             </div>
-            <button type="button" class="bk-venue-edit-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="margin-top:8px;"><i class="fa-solid fa-pen-to-square" style="margin-right:6px;"></i>Edit Location</button>
+            ${(!window.can || window.can('bookings.edit')) ? `<button type="button" class="bk-venue-edit-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="margin-top:8px;"><i class="fa-solid fa-pen-to-square" style="margin-right:6px;"></i>Edit Location</button>` : ''}
           </div>`}
 
           <!-- Public Promotion Card -->
@@ -1241,7 +1241,7 @@
               <input type="text" class="atl-input adv-ros-resp" data-field="responsible" value="${item.responsible || ''}" placeholder="Responsible" style="width:120px;">
               <button type="button" class="atl-btn atl-btn--ghost adv-ros-up" data-id="${item.id}" ${idx === 0 ? 'disabled' : ''} title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
               <button type="button" class="atl-btn atl-btn--ghost adv-ros-down" data-id="${item.id}" ${idx === ros.length - 1 ? 'disabled' : ''} title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
-              <button type="button" class="atl-btn atl-btn--ghost adv-ros-delete" data-id="${item.id}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+              ${(!window.can || window.can('bookings.manage')) ? `<button type="button" class="atl-btn atl-btn--ghost adv-ros-delete" data-id="${item.id}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash-can"></i></button>` : ''}
             </div>`;
             }).join('');
 
@@ -1258,7 +1258,7 @@
                 return `
             <div class="atl-adv-contact" data-id="${c.id}">
               <div class="atl-lead" style="font-size:13px;">${c.role || 'Contact'}
-                <button type="button" class="adv-contact-delete" data-id="${c.id}" style="background:none;border:none;color:var(--atl-clay);cursor:pointer;font-size:11px;margin-left:8px;" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
+                ${(!window.can || window.can('bookings.manage')) ? `<button type="button" class="adv-contact-delete" data-id="${c.id}" style="background:none;border:none;color:var(--atl-clay);cursor:pointer;font-size:11px;margin-left:8px;" title="Remove"><i class="fa-solid fa-trash-can"></i></button>` : ''}
               </div>
               <div class="atl-sub">${c.name || '-'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
             </div>`;
@@ -1286,7 +1286,7 @@
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
             <input type="text" class="atl-input adv-ros-new-time" placeholder="Time (e.g. 18:30)" style="width:120px;">
             <input type="text" class="atl-input adv-ros-new-title" placeholder="Title (e.g. Doors open)" style="flex:1;min-width:140px;">
-            <button type="button" class="atl-btn adv-ros-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>
+            ${(!window.can || window.can('bookings.manage')) ? `<button type="button" class="atl-btn adv-ros-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>` : ''}
           </div>
         </div>
 
@@ -1318,7 +1318,7 @@
             <input type="text" class="atl-input adv-contact-new-name" placeholder="Name" style="flex:1;min-width:100px;">
             <input type="text" class="atl-input adv-contact-new-phone" placeholder="Phone" style="width:120px;">
             <input type="text" class="atl-input adv-contact-new-email" placeholder="Email" style="width:170px;">
-            <button type="button" class="atl-btn adv-contact-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>
+            ${(!window.can || window.can('bookings.manage')) ? `<button type="button" class="atl-btn adv-contact-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>` : ''}
           </div>
         </div>
 
@@ -1524,10 +1524,10 @@
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-review-request" data-id="${row.id}"><i class="fa-solid fa-star" style="margin-right:6px;"></i>Request Review</button>`;
                 }
                 if (s === 'EXPIRED') {
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-reopen" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Reopen Booking</button>`;
+                    if (!window.can || window.can('bookings.manage')) actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-reopen" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Reopen Booking</button>`;
                 }
                 if (s === 'CANCELLED') {
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-refund" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Record Refund</button>`;
+                    if (!window.can || window.can('bookings.manage')) actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-refund" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Record Refund</button>`;
                     // "Book Again" dropped from inline — it already lives in the More menu below (bk-action-book-again).
                 }
 
@@ -1543,28 +1543,28 @@
                     <button type="button" class="atl-actions-dropdown-item bk-action-email" data-id="${row.id}"><i class="fa-solid fa-envelope" style="color:var(--atl-sage);width:14px;"></i> Email Client</button>
                     ${demotedMoreItems}
                     ${s === 'ACCEPTED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-status" data-id="${row.id}" data-status="QUOTED"><i class="fa-solid fa-rotate-left" style="color:var(--atl-amber-light);width:14px;"></i> Rescind Acceptance</button>` : ''}
-                    ${s === 'ACCEPTED' && acceptedStage === 'none' ? `<button type="button" class="atl-actions-dropdown-item bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-blue);width:14px;"></i> Generate Invoice</button>` : ''}
-                    ${s === 'ACCEPTED' && (acceptedStage === 'invoiced' || acceptedStage === 'paid') ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-blue);width:14px;"></i> Resend Invoice</button>` : ''}
+                    ${s === 'ACCEPTED' && acceptedStage === 'none' && (!window.can || window.can('finance.create')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-blue);width:14px;"></i> Generate Invoice</button>` : ''}
+                    ${s === 'ACCEPTED' && (acceptedStage === 'invoiced' || acceptedStage === 'paid') && (!window.can || window.can('finance.manage')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-blue);width:14px;"></i> Resend Invoice</button>` : ''}
                     ${!['CANCELLED','COMPLETED','CONFIRMED'].includes(s)&&evDate ? `<button type="button" class="atl-actions-dropdown-item bk-action-hold-date" data-id="${row.id}" data-date="${evDate}"><i class="fa-solid fa-calendar-xmark" style="color:var(--atl-clay);width:14px;"></i> Hold Date</button>` : ''}
                     ${['QUOTED','ACCEPTED','CONFIRMED'].includes(s) ? `<button type="button" class="atl-actions-dropdown-item bk-action-resend-quote" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-amber-light);width:14px;"></i> Resend Quote</button>` : ''}
                     ${['CONFIRMED','COMPLETED'].includes(s) ? `<button type="button" class="atl-actions-dropdown-item bk-action-resend-confirm" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-sage);width:14px;"></i> Resend Confirmation</button>` : ''}
-                    ${s === 'CONFIRMED' && !hasInvoice ? `<button type="button" class="atl-actions-dropdown-item bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-circle-plus" style="color:var(--atl-blue);width:14px;"></i> Generate Invoice</button>` : ''}
-                    ${s === 'CONFIRMED' && hasInvoice && !invoiceSent ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-paper-plane" style="color:var(--atl-blue);width:14px;"></i> Send Invoice</button>` : ''}
-                    ${s === 'CONFIRMED' && hasInvoice && invoiceSent && ps !== 'PAID' ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-blue);width:14px;"></i> Resend Invoice</button>` : ''}
-                    <button type="button" class="atl-actions-dropdown-item bk-action-contract" data-id="${row.id}"><i class="fa-solid fa-file-contract" style="color:#9575CD;width:14px;"></i> Contract</button>
+                    ${s === 'CONFIRMED' && !hasInvoice && (!window.can || window.can('finance.create')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-circle-plus" style="color:var(--atl-blue);width:14px;"></i> Generate Invoice</button>` : ''}
+                    ${s === 'CONFIRMED' && hasInvoice && !invoiceSent && (!window.can || window.can('finance.manage')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-paper-plane" style="color:var(--atl-blue);width:14px;"></i> Send Invoice</button>` : ''}
+                    ${s === 'CONFIRMED' && hasInvoice && invoiceSent && ps !== 'PAID' && (!window.can || window.can('finance.manage')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-blue);width:14px;"></i> Resend Invoice</button>` : ''}
+                    ${(!window.can || window.can('bookings.manage')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-contract" data-id="${row.id}"><i class="fa-solid fa-file-contract" style="color:#9575CD;width:14px;"></i> Contract</button>` : ''}
                     <button type="button" class="atl-actions-dropdown-item bk-action-sync-cal" data-id="${row.id}"><i class="fa-solid fa-rotate" style="color:var(--atl-blue);width:14px;"></i> Sync to Calendar</button>
-                    ${s === 'EXPIRED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-reopen" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="color:var(--atl-sage);width:14px;"></i> Reopen Booking</button>` : ''}
+                    ${s === 'EXPIRED' && (!window.can || window.can('bookings.manage')) ? `<button type="button" class="atl-actions-dropdown-item bk-action-reopen" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="color:var(--atl-sage);width:14px;"></i> Reopen Booking</button>` : ''}
                     ${s === 'CANCELLED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-book-again" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-amber);width:14px;"></i> Book Again</button>` : ''}
-                    <div class="atl-actions-dropdown-sep"></div>
+                    ${(!window.can || window.can('bookings.manage')) ? `<div class="atl-actions-dropdown-sep"></div>
                     ${disposition !== 'active'
                         ? `<button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="active"><i class="fa-solid fa-rotate-left" style="color:var(--atl-sage);width:14px;"></i> Restore to Active</button>`
                         : `<button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="not_a_fit"><i class="fa-solid fa-thumbs-down" style="color:var(--atl-amber-light);width:14px;"></i> Mark Not a Fit</button>
-                           <button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="archived"><i class="fa-solid fa-box-archive" style="color:var(--atl-muted);width:14px;"></i> Archive</button>`}
+                           <button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="archived"><i class="fa-solid fa-box-archive" style="color:var(--atl-muted);width:14px;"></i> Archive</button>`}` : ''}
                     <div class="atl-actions-dropdown-sep"></div>
-                    ${s!=='CANCELLED'?`<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger cancel-booking-btn" data-id="${row.id}"><i class="fa-solid fa-ban" style="width:14px;"></i> Cancel Booking</button>`:''}
-                    ${(parseFloat(row.amount_paid || 0) > 0 || hasInvoice || row.quoted_at) ? 
+                    ${s!=='CANCELLED' && (!window.can || window.can('bookings.manage')) ?`<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger cancel-booking-btn" data-id="${row.id}"><i class="fa-solid fa-ban" style="width:14px;"></i> Cancel Booking</button>`:''}
+                    ${(!window.can || window.can('bookings.delete')) ? ((parseFloat(row.amount_paid || 0) > 0 || hasInvoice || row.quoted_at) ?
                     `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger" style="opacity:0.5; cursor:not-allowed;" title="Cannot delete a booking with financial or quotation records. Cancel it instead." disabled><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>` :
-                    `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger delete-btn" data-type="bookings" data-id="${row.id}"><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>`}
+                    `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger delete-btn" data-type="bookings" data-id="${row.id}"><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>`) : ''}
                   </div>
                 </div>`;
 

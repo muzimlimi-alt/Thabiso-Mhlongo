@@ -529,7 +529,7 @@
                     `<div style="font-size:11px;color:#aaa;line-height:1.5;">${noteText}</div>` +
                     `<div style="margin-top:4px;display:flex;justify-content:space-between;align-items:center;">` +
                     `<span style="font-size:10px;${authorStyle}">${n.author || 'System'} &middot; ${ts}</span>` +
-                    `<button type="button" class="bk-delete-note-btn" data-booking-id="${id}" data-note-id="${n.id}" style="background:none;border:none;color:var(--atl-clay);font-size:10px;cursor:pointer;padding:0;"><i class="fa-solid fa-trash-can"></i></button>` +
+                    ((!window.can || window.can('bookings.edit')) ? `<button type="button" class="bk-delete-note-btn" data-booking-id="${id}" data-note-id="${n.id}" style="background:none;border:none;color:var(--atl-clay);font-size:10px;cursor:pointer;padding:0;"><i class="fa-solid fa-trash-can"></i></button>` : '') +
                     `</div></div>`;
             }).join(''));
         } catch(err) {

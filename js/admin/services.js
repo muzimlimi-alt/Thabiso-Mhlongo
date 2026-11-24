@@ -257,9 +257,9 @@ window.filterServicesTable = function() {
                 </div>
                 <div class="svc-card__actions">
                   ${s.is_deleted
-                    ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="restoreService(${s.id})" title="Restore service" aria-label="Restore ${safeName}"><i class="fa-solid fa-rotate-left"></i></button>`
-                    : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm btn-svc-edit" data-id="${s.id}" title="Edit service" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
-                       <button type="button" class="um-btn um-btn--danger um-btn--sm btn-svc-delete" data-id="${s.id}" title="Archive service" aria-label="Archive ${safeName}"><i class="fa-solid fa-archive"></i></button>`
+                    ? (!window.can || window.can('services.manage') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="restoreService(${s.id})" title="Restore service" aria-label="Restore ${safeName}"><i class="fa-solid fa-rotate-left"></i></button>` : '')
+                    : `${!window.can || window.can('services.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm btn-svc-edit" data-id="${s.id}" title="Edit service" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>` : ''}
+                       ${!window.can || window.can('services.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm btn-svc-delete" data-id="${s.id}" title="Archive service" aria-label="Archive ${safeName}"><i class="fa-solid fa-archive"></i></button>` : ''}`
                   }
                 </div>
               </div></div>

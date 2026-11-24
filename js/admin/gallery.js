@@ -56,12 +56,8 @@ async function loadGallery() {
                     <p class="atl-edit-card__subtitle">${subtitle}</p>
                   </div>
                   <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openGalleryEditDrawer(${item.id})" title="Edit media" aria-label="Edit media">
-                      <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="um-btn um-btn--danger um-btn--sm remove-gallery-action" data-id="${item.id}" title="Delete media" aria-label="Delete media">
-                      <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openGalleryEditDrawer(${item.id})" title="Edit media" aria-label="Edit media"><i class="fa-solid fa-pen"></i></button>` : '')}
+                    ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-gallery-action" data-id="${item.id}" title="Delete media" aria-label="Delete media"><i class="fa-solid fa-trash-can"></i></button>` : '')}
                   </div>
                 </div>
               </div>

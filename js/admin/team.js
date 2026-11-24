@@ -98,12 +98,8 @@ async function loadTeam() {
                     <div class="atl-edit-card__desc">${statusBadge} ${featuredBadge}</div>
                   </div>
                   <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openTeamEditDrawer(${item.id})" title="Edit team member" aria-label="Edit ${safeName}">
-                      <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="um-btn um-btn--danger um-btn--sm team-delete-btn" data-id="${item.id}" title="Delete team member" aria-label="Delete ${safeName}">
-                      <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    ${(!window.can || window.can('site-content.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openTeamEditDrawer(${item.id})" title="Edit team member" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>` : '')}
+                    ${(!window.can || window.can('site-content.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm team-delete-btn" data-id="${item.id}" title="Delete team member" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash-can"></i></button>` : '')}
                   </div>
                 </div>
               </div>

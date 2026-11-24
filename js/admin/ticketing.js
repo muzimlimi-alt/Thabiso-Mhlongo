@@ -33,7 +33,7 @@
         catch (e) { return iso; }
     }
     function toast(kind, msg) { if (window.notificationService && window.notificationService[kind]) window.notificationService[kind](msg); }
-    function canManage() { return !document.body.classList.contains('role-assistant'); }
+    function canManage() { return !window.can || window.can('events.manage'); }
     function call(method, url, body) {
         var opts = { method: method, credentials: 'same-origin', cache: 'no-store', headers: {}, bypassInterceptor: true };
         if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }

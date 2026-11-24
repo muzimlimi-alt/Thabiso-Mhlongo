@@ -39,12 +39,8 @@ async function renderSocialList() {
                     </div>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; padding-left: 15px;">
-                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm edit-social-action" data-index="${index}" title="Edit ${item.platform_name}" aria-label="Edit ${item.platform_name}">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="um-btn um-btn--danger um-btn--sm remove-social-action" data-id="${item.id}" title="Delete ${item.platform_name}" aria-label="Delete ${item.platform_name}">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    ${!window.can || window.can('social.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm edit-social-action" data-index="${index}" title="Edit ${item.platform_name}" aria-label="Edit ${item.platform_name}"><i class="fa-solid fa-pen"></i></button>` : ''}
+                    ${!window.can || window.can('social.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-social-action" data-id="${item.id}" title="Delete ${item.platform_name}" aria-label="Delete ${item.platform_name}"><i class="fa-solid fa-trash-can"></i></button>` : ''}
                 </div>
             </div>`;
             $list.append(html);
@@ -255,12 +251,8 @@ async function renderEmbedList() {
                     </div>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; padding-left: 15px;">
-                    <button type="button" class="atl-btn atl-btn--ghost um-btn--sm edit-embed-action" data-id="${item.id}" data-index="${index}" title="Edit ${title}" aria-label="Edit ${title}">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="um-btn um-btn--danger um-btn--sm remove-embed-action" data-id="${item.id}" title="Delete ${title}" aria-label="Delete ${title}">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    ${!window.can || window.can('social.edit') ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm edit-embed-action" data-id="${item.id}" data-index="${index}" title="Edit ${title}" aria-label="Edit ${title}"><i class="fa-solid fa-pen"></i></button>` : ''}
+                    ${!window.can || window.can('social.delete') ? `<button type="button" class="um-btn um-btn--danger um-btn--sm remove-embed-action" data-id="${item.id}" title="Delete ${title}" aria-label="Delete ${title}"><i class="fa-solid fa-trash-can"></i></button>` : ''}
                 </div>
             </div>`;
             $list.append(html);

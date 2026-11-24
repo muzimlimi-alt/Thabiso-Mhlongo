@@ -47,10 +47,10 @@
             html += '<span><i class="fa-solid fa-key"></i> ' + (r.permission_count || 0) + ' permissions</span>';
             html += '</div>';
             html += '<div class="rbac-role-card__actions">';
-            html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-perms" data-role-id="' + r.id + '"><i class="fa-solid fa-sliders"></i> Permissions</button>';
+            if (!window.can || window.can('roles.manage')) html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-perms" data-role-id="' + r.id + '"><i class="fa-solid fa-sliders"></i> Permissions</button>';
             if (!r.is_system) {
-                html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-role" data-role-id="' + r.id + '"><i class="fa-solid fa-pen"></i> Edit</button>';
-                html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-delete-role" data-role-id="' + r.id + '" data-role-name="' + esc(r.name) + '" style="color:var(--atl-clay);"><i class="fa-solid fa-trash"></i> Delete</button>';
+                if (!window.can || window.can('roles.edit')) html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-edit-role" data-role-id="' + r.id + '"><i class="fa-solid fa-pen"></i> Edit</button>';
+                if (!window.can || window.can('roles.delete')) html += '<button class="atl-btn atl-btn--ghost atl-btn--sm rbac-delete-role" data-role-id="' + r.id + '" data-role-name="' + esc(r.name) + '" style="color:var(--atl-clay);"><i class="fa-solid fa-trash"></i> Delete</button>';
             }
             html += '</div></div>';
             return html;
