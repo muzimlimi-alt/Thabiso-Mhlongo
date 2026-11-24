@@ -1,6 +1,7 @@
 # RBAC Route Inventory
 
 **Generated:** 2026-11-23  
+**Updated:** 2026-11-24 — `requireRole` sweep complete (Batches 1–4)  
 **Total routes:** 410  
 **Scope:** All files under `routes/admin/`
 
@@ -8,9 +9,22 @@
 
 | Status | Count | Meaning |
 |--------|-------|---------|
-| DONE | 31 | Already using `requirePermission(...)` |
+| DONE | 31+ | Already using `requirePermission(...)` before the sweep |
 | EXEMPT | 8 | Auth/session endpoints — no RBAC check applies |
-| PENDING | 371 | Using `requireAdmin` or `requireRole([...])` — needs conversion |
+| PENDING | ~230 | `requireAdmin`-only (any-admin scope) — future pass to add fine-grained permission |
+| CONVERTED | ~140 | Had `requireRole([...])` — now `requirePermission('key')` as of Batches 1–4 |
+
+**Batches completed (2026-11-23/24):**
+- Batch 1: accolades, banners, content, faq, home-social, team, site-content, services, google-calendar, business-profile, branding/appearances, eft, payfast-reconcile, abandoned-bookings
+- Batch 2a: advancing, abandoned-bookings
+- Batch 2b: calendar, events, ticketing
+- Batch 2c: bookings (58 routes)
+- Batch 3: notifications, inquiries, newsletter-campaigns, newsletter-subscribers, campaigns, email-templates, dashboard, misc
+- Batch 4: users, popia, places, inbox-sync, calendar-sync, legal
+
+**Remaining work:** `requireAdmin`-only routes (~230) can optionally be converted to `requirePermission('module.view')` in a future pass. These are open to all logged-in admins and carry no RBAC risk as-is — conversion is cosmetic/consistency only.
+
+**Note:** Row-level statuses in the tables below reflect the state at generation time (2026-11-23). Routes with scope `manager+` or `admin-only` that show PENDING have been converted. Only scope `any-admin` PENDING rows remain outstanding.
 
 ## Legend
 
