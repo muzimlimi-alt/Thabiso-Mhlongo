@@ -6,7 +6,7 @@
 // key (GOOGLE_MAPS_BROWSER_KEY, GET /api/admin/maps-config) - see lib/places.js for why.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const places = require('../../lib/places');
 const { sendPlacesError } = places;
 const router = express.Router();
@@ -34,7 +34,7 @@ router.get('/api/admin/places/details', requireAdmin, async (req, res) => {
 
 // "Test Google Places" (System -> Integrations): runs one real search and reports what Google answered - the
 // configuration problem in plain words, never the key. Administrator-only, since it spends a Google request.
-router.get('/api/admin/places/status', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.get('/api/admin/places/status', requireAdmin, requirePermission('integrations.view'), async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
         res.json(Object.assign({ success: true }, await places.diagnose()));

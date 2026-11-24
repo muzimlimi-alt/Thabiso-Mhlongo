@@ -2,12 +2,12 @@
 // Every route is administrator-only: switching this on lets the site read a mailbox, which is the same level of trust as the Email (SMTP) settings.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
 const inboxSync = require('../../lib/inbox-sync');
 const graph = require('../../lib/m365-graph');
 const router = express.Router();
-const adminOnly = [requireAdmin, requireRole(['administrator'])];
+const adminOnly = [requireAdmin, requirePermission('integrations.manage')];
 
 router.get('/api/admin/inbox-sync', ...adminOnly, async (req, res) => {
     try { res.json({ success: true, ...(await inboxSync.getStatus()) }); }

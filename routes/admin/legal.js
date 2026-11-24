@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 const router = express.Router();
 
@@ -67,7 +67,7 @@ router.get('/api/admin/legal/documents/:type/history', requireAdmin, (req, res) 
 });
 
 // Route 4 — Save a new draft version (write)
-router.post('/api/admin/legal/documents/:type/draft', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/legal/documents/:type/draft', requireAdmin, requirePermission('legal.create'), (req, res) => {
     const type = req.params.type;
     // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
     let content = sanitizeAboutHtml((req.body.content_html || '').toString());
@@ -90,7 +90,7 @@ router.post('/api/admin/legal/documents/:type/draft', requireAdmin, requireRole(
 });
 
 // Route 5 — Publish a draft (latest, or a specific version_id) (write)
-router.post('/api/admin/legal/documents/:type/publish', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/legal/documents/:type/publish', requireAdmin, requirePermission('legal.manage'), (req, res) => {
     const type = req.params.type;
     const by = req.session.username || 'admin';
     db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (err, doc) => {
@@ -124,7 +124,7 @@ router.post('/api/admin/legal/documents/:type/publish', requireAdmin, requireRol
 });
 
 // Route 6 — Restore a previous version as a new draft (write)
-router.post('/api/admin/legal/documents/:type/restore/:versionId', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/legal/documents/:type/restore/:versionId', requireAdmin, requirePermission('legal.manage'), (req, res) => {
     const type = req.params.type;
     db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (err, doc) => {
         if (err) return res.status(500).json({ success: false, message: err.message });

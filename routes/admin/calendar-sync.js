@@ -5,13 +5,13 @@
 //   administrator or manager             sync now, retry a failed entry, resolve a conflict, re-create a deleted entry
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
 const graph = require('../../lib/m365-graph');
 const sync = require('../../lib/calendar-m365');
 const router = express.Router();
-const adminOnly = [requireAdmin, requireRole(['administrator'])];
-const managerUp = [requireAdmin, requireRole(['administrator', 'manager'])];
+const adminOnly = [requireAdmin, requirePermission('integrations.manage')];
+const managerUp = [requireAdmin, requirePermission('calendar.manage')];
 const fail = (res, e, what) => { console.error('calendar-sync ' + what + ' failed:', e && e.message); res.status(500).json({ success: false, message: 'The calendar sync request could not be completed.' }); };
 const entryId = (req) => { const n = Number(req.params.id); return Number.isInteger(n) && n > 0 ? n : null; };
 

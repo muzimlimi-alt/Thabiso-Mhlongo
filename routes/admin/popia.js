@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { dbGet, dbAll } = require('../../lib/db-helpers');
 const { encodeUserHtml } = require('../../lib/html-sanitize');
@@ -50,7 +50,7 @@ router.get('/api/admin/popia/requests', requireAdmin, (req, res) => {
 });
 
 // CSV export — same filter params as the list endpoint.
-router.get('/api/admin/popia/requests/export', requireAdmin, requireRole(['administrator', 'manager']), exportRateLimiter, (req, res) => {
+router.get('/api/admin/popia/requests/export', requireAdmin, requirePermission('legal.export'), exportRateLimiter, (req, res) => {
     const status = req.query.status || null;
     const source = req.query.source || null;
     const search = req.query.search || '';
@@ -147,13 +147,13 @@ router.get('/api/admin/popia/requests/:id', requireAdmin, async (req, res) => {
     }
 });
 
-router.put('/api/admin/popia/requests/:id/approve', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.put('/api/admin/popia/requests/:id/approve', requireAdmin, requirePermission('legal.manage'), async (req, res) => {
     const outcome = await approvePopiaRequest(req.params.id, req.session.adminId, req.session.username);
     if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
     res.json({ success: true, message: 'Request approved.' });
 });
 
-router.put('/api/admin/popia/requests/:id/reject', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.put('/api/admin/popia/requests/:id/reject', requireAdmin, requirePermission('legal.manage'), async (req, res) => {
     const notes = String(req.body?.review_notes || '').trim();
     if (!notes) return res.status(400).json({ success: false, message: 'Review notes are required when rejecting a request.' });
     const outcome = await rejectPopiaRequest(req.params.id, req.session.adminId, req.session.username, encodeUserHtml(notes));
@@ -161,7 +161,7 @@ router.put('/api/admin/popia/requests/:id/reject', requireAdmin, requireRole(['a
     res.json({ success: true, message: 'Request rejected.' });
 });
 
-router.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/popia/requests/:id/process', requireAdmin, requirePermission('legal.manage'), async (req, res) => {
     const outcome = await processPopiaRequest(req.params.id, req.session.adminId, req.session.username);
     if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
     notifyPopiaCancellations(outcome.calendarIdsToDelete, outcome.notificationSnapshots);
@@ -180,7 +180,7 @@ router.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole([
 // Called once an admin has recorded a sufficient refund (via the existing PUT .../refund route) for
 // every booking that blocked completion. Re-checks the refund gate server-side rather than trusting
 // the click.
-router.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin, requirePermission('legal.manage'), async (req, res) => {
     const outcome = await completePopiaAnonymization(req.params.id, req.session.adminId, req.session.username);
     if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
     await deletePopiaFiles(outcome.filesToDelete);
@@ -189,7 +189,7 @@ router.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin
 
 // Admin-initiated create — this is what the request list's "Anonymize Now" quick action calls.
 // With auto_process:true it chains create -> approve -> process inline in one request.
-router.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/popia/requests', requireAdmin, requirePermission('legal.manage'), async (req, res) => {
     const { email, reason, additional_comments, auto_process } = req.body || {};
     const emailNorm = typeof email === 'string' ? email.trim() : '';
     if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailNorm)) {
@@ -236,7 +236,7 @@ router.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrat
 // route produces a fully reviewable/auditable popia_erasure_requests row instead of a bare
 // audit_log line, and reuses anonymizeClientData's full table coverage instead of its own
 // 5-table subset. Response shape (success/message/affected) is preserved for existing callers.
-router.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/gdpr/delete', requireAdmin, requirePermission('legal.delete'), async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email address is required for deletion.' });
     const emailNorm = String(email).trim();

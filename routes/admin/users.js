@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole, requirePermission } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { getEffectivePermissions, invalidatePermissionsCache } = require('../../lib/rbac-engine');
 const {
     getAdminsListWithCreatorModifier, getAdminLoginLogsWithNames, insertAdminUser,
@@ -25,7 +25,7 @@ function resolveRoleKey(key, fallback, cb) {
 }
 
 // --- Users (Admins) ---
-router.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.get('/api/admin/users', requireAdmin, requirePermission('users.view'), (req, res) => {
     getAdminsListWithCreatorModifier((err, rows) => {
         if (err) { console.error('list users failed:', err); return res.status(500).json({ success: false, message: 'Could not load users. Please try again.' }); }
         res.json(rows);
@@ -33,7 +33,7 @@ router.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (re
 });
 
 // GET Admin Login Activity Logs
-router.get('/api/admin/user-login-logs', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.get('/api/admin/user-login-logs', requireAdmin, requirePermission('users.view'), (req, res) => {
     getAdminLoginLogsWithNames((err, rows) => {
         if (err) {
             console.error('Failed to fetch login logs:', err);
@@ -43,7 +43,7 @@ router.get('/api/admin/user-login-logs', requireAdmin, requireRole(['administrat
     });
 });
 
-router.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/users', requireAdmin, requirePermission('users.create'), (req, res) => {
     const { email, full_name, phone, role } = req.body;
     if (!email) {
         return res.status(400).json({ success: false, message: 'Email is required.' });
@@ -105,7 +105,7 @@ router.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (r
 });
 
 // Resend the set-password invitation to an existing (typically pending) user.
-router.post('/api/admin/users/:id/resend-invite', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/users/:id/resend-invite', requireAdmin, requirePermission('users.manage'), (req, res) => {
     const userId = parseInt(req.params.id, 10);
     getAdminForInvite(userId, (err, user) => {
         if (err || !user) return res.status(404).json({ success: false, message: 'User not found.' });
@@ -128,7 +128,7 @@ router.post('/api/admin/users/:id/resend-invite', requireAdmin, requireRole(['ad
     });
 });
 
-router.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.put('/api/admin/users/:id', requireAdmin, requirePermission('users.edit'), (req, res) => {
     const { email, password, currentPassword, full_name, phone, role, is_active } = req.body;
     const userId = parseInt(req.params.id, 10);
     const isEditingSelf = userId === req.session.adminId;
@@ -247,7 +247,7 @@ router.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
     });
 });
 
-router.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/users/:id', requireAdmin, requirePermission('users.delete'), (req, res) => {
     const targetUserId = parseInt(req.params.id, 10);
     const currentUserId = req.session.adminId; // prevent self-deletion
 
