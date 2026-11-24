@@ -201,7 +201,7 @@
         });
         var all = document.getElementById('ntfBellReadAll');
         if (all) all.addEventListener('click', function () { call('POST', '/api/admin/notifications/read-all').then(refreshSummary); });
-        startPolling();
+        if (!window.can || window.can('notifications.view')) startPolling();
     }
     function goCentre(panel) {
         if (window.admNav && window.admNav.go) window.admNav.go('notificationsAdmin', { tab: panel || 'ntfPanelAction' });

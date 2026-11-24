@@ -6,6 +6,7 @@
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
 const { requirePermission } = require('../../middleware/rbac');
+const { getEffectivePermissions } = require('../../lib/rbac-engine');
 const { resolveRange } = require('../../lib/insights-range');
 const insights = require('../../lib/insights');
 const businessProfile = require('../../lib/business-profile');
@@ -14,7 +15,6 @@ const router = express.Router();
 
 const CACHE_MS = 60 * 1000;
 const cache = new Map();
-const MONEY_ROLES = ['administrator', 'manager'];
 
 async function rangeFor(req) {
     const profile = await businessProfile.getRow().catch(() => null);
@@ -34,7 +34,8 @@ function cached(key, fn) {
 router.get('/api/admin/insights/overview', requireAdmin, async (req, res) => {
     const range = await rangeFor(req);
     if (range.error) return res.status(400).json({ success: false, error: range.error });
-    const seesMoney = MONEY_ROLES.includes(req.session.role) || MONEY_ROLES.includes(req.session.baseRole);
+    const perms = await getEffectivePermissions(req.session.adminId, req.session.role);
+    const seesMoney = perms.has('finance.view');
     try {
         const data = await cached(`overview|${range.from}|${range.to}|${range.prevFrom}`, () => insights.overview(range));
         const business = { ...data.business };
