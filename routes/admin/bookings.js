@@ -6,7 +6,7 @@ const multer = require('multer');
 const moment = require('moment-timezone');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { mutateRateLimiter } = require('../../middleware/rate-limiters');
 const { resolveDocsPath, docsWriteDir, PROJECT_ROOT, DOCS_PATH } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
@@ -257,7 +257,7 @@ async function sendContractEmail(booking, contractPdfPath) {
 }
 
 // Gap 10: GET — fetch outgoing communication log for a booking
-router.get('/api/admin/bookings/:id/communications', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/communications', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.all(
         `SELECT id, direction, channel, subject, content_snippet, sent_at, created_at
          FROM communication_log WHERE booking_id = ? ORDER BY created_at DESC LIMIT 50`,
@@ -268,7 +268,7 @@ router.get('/api/admin/bookings/:id/communications', requireAdmin, (req, res) =>
 
 // Unlink a booking from its client record so COALESCE falls back to the booking's own name/email.
 // Use when client_id was incorrectly assigned (e.g. email collision in findOrCreateClient).
-router.post('/api/admin/bookings/:id/unlink-client', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/unlink-client', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     unlinkBookingClient(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -277,7 +277,7 @@ router.post('/api/admin/bookings/:id/unlink-client', requireAdmin, (req, res) =>
 });
 
 // S5-4: Threaded booking notes — replaces the single admin_notes text blob.
-router.get('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/notes', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     getBookingNotesForBooking(
         req.params.id,
         (err, rows) => {
@@ -287,7 +287,7 @@ router.get('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
     );
 });
 
-router.post('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/notes', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const { note, author } = req.body;
     if (!note || !note.trim()) return res.status(400).json({ success: false, message: 'Note text is required.' });
     insertBookingNote(
@@ -301,7 +301,7 @@ router.post('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
     );
 });
 
-router.delete('/api/admin/bookings/:id/notes/:noteId', requireAdmin, (req, res) => {
+router.delete('/api/admin/bookings/:id/notes/:noteId', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     deleteBookingNote(
         req.params.noteId, req.params.id,
         function(err) {
@@ -313,7 +313,7 @@ router.delete('/api/admin/bookings/:id/notes/:noteId', requireAdmin, (req, res) 
 });
 
 // --- Booking Line Items + Transactions (lazy detail) ---
-router.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/details', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const id = req.params.id;
     // Prefer booking_services if available, fallback to booking_line_items for legacy data
     db.all(`SELECT bs.*, bs.quantity_minutes as quantity, s.name as service_name, s.display_unit,
@@ -360,7 +360,7 @@ router.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
     });
 });
 
-router.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/quote-history', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     getQuoteHistoryForBooking(
         req.params.id, (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
@@ -375,7 +375,7 @@ router.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => 
 });
 
 // GET /api/admin/bookings/:id/expenses — expenses for a specific booking + P&L
-router.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/bookings/:id/expenses', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const bookingId = req.params.id;
     getExpensesForBooking(bookingId, (err, expenses) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -415,7 +415,7 @@ router.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['admin
 
 // 5. Booking-Specific Financial Details (Admin)
 
-router.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/bookings/:id/financials', requireAdmin, requirePermission('finance.view'), (req, res) => {
     const bookingId = req.params.id;
     const result = { quote: null, invoice: null };
 
@@ -445,7 +445,7 @@ router.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['adm
 });
 
 // P2.0 — Cancellation Preview
-router.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const bookingId = req.params.id;
     db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -462,7 +462,7 @@ router.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, (req, r
 });
 
 // P2.0 — Reopen an EXPIRED booking — resets to PENDING so admin can issue a new quote
-router.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/reopen', requireAdmin, requirePermission('bookings.manage'), (req, res) => {
     const bookingId = parseInt(req.params.id, 10);
     getBookingStatusNameEmail(bookingId, (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -488,7 +488,7 @@ router.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
 });
 
 // 2. Ledger reconciliation — compares booking's denormalised ledger against transaction sum.
-router.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/reconcile', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const bookingId = req.params.id;
     db.get(
         `SELECT
@@ -516,7 +516,7 @@ router.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
 });
 
 // 2b. Download Invoice (Admin Authorized)
-router.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/invoice/download', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     // Same as the public route: serve the live invoice, never a superseded VOID revision.
     getInvoiceFileForAdminDownload(req.params.id, async (err, row) => {
 
@@ -531,7 +531,7 @@ router.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) 
 });
 
 // 2c. Download Quote (Admin Authorized)
-router.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/quote/download', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     getQuoteFileForAdminDownload(req.params.id, async (err, row) => {
 
         if (err || !row) return res.status(404).send('Quotation not found');
@@ -547,7 +547,7 @@ router.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) =>
 // 2d. View ONE quotation version (Admin Authorized). The quote files sit behind the site's blocked /docs/ path (app.js refuses every
 // /docs/ URL), so a link straight to /docs/quotes/<file>.pdf can never open - that is what the Files tab chip and the quote history
 // list used to point at. They link here instead, and the PDF opens inline in the browser tab. The id must belong to the booking in the URL.
-router.get('/api/admin/bookings/:id/quote/:quoteId/download', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/quote/:quoteId/download', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     if (!/^\d+$/.test(String(req.params.quoteId))) return res.status(404).send('Quotation not found');
     getQuoteFileForAdminDownloadById(req.params.id, req.params.quoteId, async (err, row) => {
         if (err || !row) return res.status(404).send('Quotation not found');
@@ -563,7 +563,7 @@ router.get('/api/admin/bookings/:id/quote/:quoteId/download', requireAdmin, (req
 // POST — generate a booking contract PDF (admin, on demand). `{ clauses }` in the body drives the
 // Contract Builder path; an empty/absent body keeps today's zero-customization auto-generate
 // behavior. Signed contracts are protected.
-router.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/contract/generate', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const result = await generateContract(req.params.id, (req.body && req.body.clauses) || null);
         if (result.skipped) {
@@ -582,7 +582,7 @@ router.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (re
 // GET — pre-fill data for the Contract Builder editor: booking/party facts, resolved fee/schedule,
 // policy defaults, and (if a draft already exists) the last-submitted clause text so re-opening
 // the editor restores prior edits instead of resetting to raw defaults.
-router.get('/api/admin/bookings/:id/contract/builder-data', requireAdmin, async (req, res) => {
+router.get('/api/admin/bookings/:id/contract/builder-data', requireAdmin, requirePermission('bookings.view'), async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await dbGet(
@@ -633,7 +633,7 @@ router.get('/api/admin/bookings/:id/contract/builder-data', requireAdmin, async 
 // POST — stateless HTML preview of the contract as currently drafted in the Builder. No DB write,
 // no PDF/file write — just runs the same assembly function generate() uses, so preview always
 // matches what Generate would actually produce.
-router.post('/api/admin/bookings/:id/contract/preview', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/contract/preview', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await dbGet(
@@ -667,7 +667,7 @@ router.post('/api/admin/bookings/:id/contract/preview', requireAdmin, async (req
 });
 
 // GET — fetch contract details for a booking
-router.get('/api/admin/bookings/:id/contract', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/contract', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.get("SELECT * FROM contracts WHERE booking_id = ?", [req.params.id], (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, contract: row || null });
@@ -675,7 +675,7 @@ router.get('/api/admin/bookings/:id/contract', requireAdmin, (req, res) => {
 });
 
 // POST — upload a contract PDF
-router.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) => {
+router.post('/api/admin/bookings/:id/contract', requireAdmin, requirePermission('bookings.edit'), (req, res, next) => {
     contractUpload.single('contract_file')(req, res, function(err) {
         if (err) {
             // multer fileFilter error — return clear 400
@@ -734,7 +734,7 @@ router.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) =
 });
 
 // PUT — mark a contract as signed
-router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, requirePermission('bookings.manage'), (req, res) => {
     const bookingId = req.params.id;
     const signatoryName = (req.body.signatory_name || '').trim().substring(0, 120);
     const signedDate = (req.body.signed_date || new Date().toISOString().split('T')[0]);
@@ -812,7 +812,7 @@ router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => 
 });
 
 // GET — download the contract PDF
-router.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/contract/download', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.get("SELECT pdf_url FROM contracts WHERE booking_id = ?", [req.params.id], async (err, row) => {
         if (err || !row || !row.pdf_url) return res.status(404).json({ success: false, message: 'No contract on file for this booking.' });
         const doc = await objectStorage.resolveDocument('contracts', row.pdf_url);
@@ -832,7 +832,7 @@ router.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res)
 // POST — send the generated contract to the client for online signing.
 // Draft-only generation means this is the explicit "deliver it" step; it stamps sent_to_client_at
 // and advances draft -> sent so the client tracking page exposes the review-and-sign flow.
-router.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLimiter, (req, res) => {
+router.post('/api/admin/bookings/:id/contract/send', requireAdmin, requirePermission('bookings.manage'), mutateRateLimiter, (req, res) => {
     const bookingId = req.params.id;
     db.get(`SELECT b.id, b.name, b.status, COALESCE(c.email, b.email) AS email, b.event_name, b.event_type, b.date
             FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`, [bookingId], (err, booking) => {
@@ -876,7 +876,7 @@ router.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLim
 });
 
 // Gap 8: POST — send contract signature reminder email to client
-router.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimiter, (req, res) => {
+router.post('/api/admin/bookings/:id/contract/remind', requireAdmin, requirePermission('bookings.manage'), mutateRateLimiter, (req, res) => {
     const bookingId = req.params.id;
     getBookingForContractRemind(bookingId, (err, b) => {
         if (err || !b) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -932,7 +932,7 @@ router.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateL
 // remaining caller in app.js.
 
 // POST — send the state-appropriate reminder for one booking.
-router.post('/api/admin/bookings/:id/remind', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/remind', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     try {
         const result = await remindBooking(req.params.id);
         res.json({ success: true, ...result });
@@ -943,7 +943,7 @@ router.post('/api/admin/bookings/:id/remind', requireAdmin, async (req, res) => 
 });
 
 // POST — bulk "Send reminder": each selected booking gets the reminder appropriate to its state.
-router.post('/api/admin/bookings/bulk-remind', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/bookings/bulk-remind', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.map(n => parseInt(n, 10)).filter(n => !isNaN(n)) : [];
     if (ids.length === 0) return res.status(400).json({ success: false, message: 'No bookings selected.' });
     if (ids.length > 200) return res.status(400).json({ success: false, message: 'Too many bookings selected (max 200).' });
@@ -962,7 +962,7 @@ router.post('/api/admin/bookings/bulk-remind', requireAdmin, requireRole(['admin
 });
 
 // --- Booking Email Actions ---
-router.post('/api/admin/bookings/:id/resend-quote', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/resend-quote', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as client_name, COALESCE(c.email, b.email) as client_email
             FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
         [req.params.id], async (err, b) => {
@@ -979,7 +979,7 @@ router.post('/api/admin/bookings/:id/resend-quote', requireAdmin, async (req, re
         });
 });
 
-router.post('/api/admin/bookings/:id/resend-confirmation', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/resend-confirmation', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as client_name, COALESCE(c.email, b.email) as client_email
             FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
         [req.params.id], async (err, b) => {
@@ -993,7 +993,7 @@ router.post('/api/admin/bookings/:id/resend-confirmation', requireAdmin, async (
         });
 });
 
-router.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/review-request', requireAdmin, requirePermission('bookings.manage'), (req, res) => {
     db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as name, COALESCE(c.email, b.email) as email
             FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
         [req.params.id], async (err, b) => {
@@ -1009,7 +1009,7 @@ router.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) =
 });
 
 // P2.0b — Book Again — creates a new PENDING booking pre-filled from a CANCELLED booking
-router.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/book-again', requireAdmin, requirePermission('bookings.create'), async (req, res) => {
     const originalId = parseInt(req.params.id, 10);
     getBookingById(originalId, async (err, orig) => {
         if (err || !orig) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -1088,7 +1088,7 @@ router.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res)
 });
 
 // Gap 11: POST — manually re-sync a booking to Google Calendar
-router.post('/api/admin/bookings/:id/sync-calendar', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/sync-calendar', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         await syncBookingToCalendar(parseInt(req.params.id, 10));
         res.json({ success: true, message: 'Booking synced to Google Calendar.' });
@@ -1099,7 +1099,7 @@ router.post('/api/admin/bookings/:id/sync-calendar', requireAdmin, async (req, r
 });
 
 // --- Link a booking to a venue ---
-router.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id/venue', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const { venue_id } = req.body;
     const bookingId = req.params.id;
 
@@ -1162,7 +1162,7 @@ router.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
 });
 
 // --- Link booking to a venue using Google Place details ---
-router.put('/api/admin/bookings/:id/venue-google', requireAdmin, async (req, res) => {
+router.put('/api/admin/bookings/:id/venue-google', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     const { place_id, name, address, city, state, country, latitude, longitude } = req.body;
     const bookingId = req.params.id;
 
@@ -1218,7 +1218,7 @@ router.put('/api/admin/bookings/:id/venue-google', requireAdmin, async (req, res
  * Update booking event date and optionally time (used by FullCalendar eventDrop).
  * Accepts: { date: "YYYY-MM-DD", time?: "HH:MM" }
  */
-router.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
+router.patch('/api/admin/bookings/:id/date', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     const { date, time } = req.body;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ success: false, message: 'Valid date (YYYY-MM-DD) required.' });
@@ -1242,7 +1242,7 @@ router.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
  * PATCH /api/admin/bookings/:id/venue
  * S5-2: Update booking location/venue details without regenerating the full quote.
  */
-router.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
+router.patch('/api/admin/bookings/:id/venue', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const { event_location, venue_address, city, country, venue_type } = req.body;
     if (!event_location || !event_location.trim()) {
         return res.status(400).json({ success: false, message: 'event_location is required.' });
@@ -1276,7 +1276,7 @@ router.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/bookings/:id/quote', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     const bookingId = req.params.id;
     const isStructured = Array.isArray(req.body.items);
     
@@ -1647,7 +1647,7 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
 });
 
 // --- Enhanced Bookings (with venue + invoice) ---
-router.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/full', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const { search, status, limit, offset } = req.query;
     const params = [];
     let whereClause = 'WHERE 1=1';
@@ -1716,7 +1716,7 @@ router.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
 // --- Bookings ---
 
 // Admin: manually create a booking (bypasses public rate limiter + POPIA form)
-router.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/bookings', requireAdmin, requirePermission('bookings.create'), async (req, res) => {
     const { name, email, cell, company, event_date, event_start_time,
             event_name, event_type, event_location, status, budget_range, message,
             venue_place_id, city, venue_address, country, services, override_conflict,
@@ -1986,7 +1986,7 @@ router.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', '
     }
 });
 
-router.get('/api/admin/bookings', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const {
         status, paymentStatus, search,
         dateFrom, dateTo,
@@ -2075,7 +2075,7 @@ router.get('/api/admin/bookings', requireAdmin, (req, res) => {
     });
 });
 
-router.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.get(`SELECT b.*,
         COALESCE(b.name, c.full_name) AS name,
         COALESCE(b.email, c.email) AS email,
@@ -2153,7 +2153,7 @@ router.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
 // (same convention as everywhere else in this file — admin-typed text is stored as typed, not re-encoded); the linked client record is
 // then refreshed through the same findOrCreateClient() every other booking path uses, so a corrected e-mail re-resolves to the right
 // client (or creates one) instead of silently renaming someone else's.
-router.put('/api/admin/bookings/:id/contact', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.put('/api/admin/bookings/:id/contact', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = parseInt(req.params.id, 10);
         if (!Number.isInteger(bookingId)) return res.status(400).json({ success: false, message: 'Invalid booking id.' });
@@ -2248,7 +2248,7 @@ router.put('/api/admin/bookings/:id/contact', requireAdmin, requireRole(['admini
 // time go through lib/booking-reschedule.js, the same rules the calendar drag uses (conflict check, quote expiry, holds and
 // the linked event follow, audit row, calendar re-sync, the client e-mailed about a new date); if that refuses (a clash),
 // nothing else is saved either. Venue changes stay on the Venue card (PATCH :id/venue / PUT :id/venue-google).
-router.put('/api/admin/bookings/:id/event-details', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.put('/api/admin/bookings/:id/event-details', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = parseInt(req.params.id, 10);
         if (!Number.isInteger(bookingId)) return res.status(400).json({ success: false, message: 'Invalid booking id.' });
@@ -2326,7 +2326,7 @@ router.put('/api/admin/bookings/:id/event-details', requireAdmin, requireRole(['
 // Phase 5 (HOUSEKEEPING-NOTES.md): applyStatusChange moved to lib/booking-status.js — see the
 // require near the top of this file for the re-import.
 
-router.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const { status, reason } = req.body;
     if (!status) return res.status(400).json({ success: false, message: 'status field required.' });
     getBookingStatus(req.params.id, (err, row) => {
@@ -2335,7 +2335,7 @@ router.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
     });
 });
 
-router.patch('/api/admin/bookings/:id/buffer', requireAdmin, (req, res) => {
+router.patch('/api/admin/bookings/:id/buffer', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const id = parseInt(req.params.id);
     const raw = req.body.buffer_minutes;
     const mins = (raw === null || raw === '') ? null : parseInt(raw);
@@ -2350,7 +2350,7 @@ router.patch('/api/admin/bookings/:id/buffer', requireAdmin, (req, res) => {
 });
 
 // Update booking public promotion status
-router.put('/api/admin/bookings/:id/public', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id/public', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const { is_public, ticket_link } = req.body;
 
     // Validate ticket_link if provided
@@ -2474,7 +2474,7 @@ router.put('/api/admin/bookings/:id/public', requireAdmin, (req, res) => {
     );
 });
 
-router.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id/status', requireAdmin, requirePermission('bookings.approve'), (req, res) => {
     const requestedStatus = (req.body.status || '').toUpperCase();
     const reason = req.body.reason;
     if (!requestedStatus) return res.status(400).json({ success: false, message: 'status field required.' });
@@ -2486,7 +2486,7 @@ router.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): BOOKING_DISPOSITIONS moved into routes/admin/bookings.js as a
 // single-consumer local alongside the disposition route.
-router.put('/api/admin/bookings/:id/disposition', requireAdmin, (req, res) => {
+router.put('/api/admin/bookings/:id/disposition', requireAdmin, requirePermission('bookings.edit'), (req, res) => {
     const bookingId = req.params.id;
     const disposition = req.body.disposition;
     if (!BOOKING_DISPOSITIONS.includes(disposition)) {
@@ -2512,7 +2512,7 @@ router.put('/api/admin/bookings/:id/disposition', requireAdmin, (req, res) => {
 // ==========================================
 
 // 1. Generate Invoice from Booking (Admin)
-router.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requirePermission('invoices.create'), async (req, res) => {
     const bookingId = req.params.id;
     // Guard: if a quotation exists for this booking it must be in 'accepted' state
     const activeQuote = await getActiveQuoteStatusForInvoiceGuard(bookingId).catch(() => null);
@@ -2541,7 +2541,7 @@ router.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requireRol
 });
 
 // 2.5 Ledger reconciliation sync — force aligns bookings totals to transactions
-router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requirePermission('payments.view'), (req, res) => {
     const bookingId = req.params.id;
     getTransactionsPaidSumForReconcile(
         bookingId,
@@ -2605,7 +2605,7 @@ router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(
 
 // 3.6 Payment Schedules API (Admin)
 // GET /api/admin/bookings/:id/payment-schedules — get schedules for a booking
-router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) => {
+router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, requirePermission('payments.view'), (req, res) => {
     const bookingId = req.params.id;
     // b.* rather than a named column list so payment_plan_changed_at (added by a guarded boot-time
     // ALTER TABLE) is read when present and simply absent — not an SQL error — on an older database.
@@ -2630,7 +2630,7 @@ router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res)
 // POST /api/admin/bookings/:id/payment-schedules — create or replace schedules
 // Admin-built plans are not bound by the client plan rules (max 4 payments, deposit floor, minimum
 // instalment, due-date window) — only by the sum matching the booking total.
-router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requirePermission('payments.create'), async (req, res) => {
     const bookingId = req.params.id;
     const { schedules } = req.body;
     
@@ -2741,7 +2741,7 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
 
 // POST — reconcile a booking's payment schedule to its total by proportionally rescaling the
 // PENDING milestones (paid milestones are preserved). Money only changes on this explicit action.
-router.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, requirePermission('payments.create'), (req, res) => {
     const bookingId = req.params.id;
     getBookingTotalAmount(bookingId, (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -2801,7 +2801,7 @@ router.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin,
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): BOOKING_DELETE_PURGE/BOOKING_DELETE_UNLINK moved into
 // routes/admin/bookings.js as single-consumer locals alongside the delete route.
-router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.delete('/api/admin/bookings/:id', requireAdmin, requirePermission('bookings.delete'), async (req, res) => {
     const id = req.params.id;
     try {
         const booking = await getBookingByIdAsync(id);
@@ -2870,7 +2870,7 @@ router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrat
 
 
 // Admin Booking Direct Email Responder
-router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/respond', requireAdmin, requirePermission('bookings.approve'), (req, res) => {
     const { email, subject, message: rawMessage } = req.body;
     // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
     const message = sanitizeAboutHtml(rawMessage);
@@ -2924,7 +2924,7 @@ router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
 });
 
 // Admin: manually record a payment when the PayFast ITN was not received
-router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), (req, res, next) => {
+router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requirePermission('payments.create'), (req, res, next) => {
     paymentProofUpload.single('proof_of_payment')(req, res, function(err) {
         if (err) {
             return res.status(400).json({ success: false, message: err.message || 'Invalid file. Only PDF, JPEG, PNG, or WEBP files are accepted.' });
@@ -2971,7 +2971,7 @@ router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole([
 });
 
 // P2.1 — Cancel booking (admin) — writes to cancellations table and notifies client
-router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/cancel', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     const bookingId = req.params.id;
     const { reason, cancelled_by, notes } = req.body;
     const validCancelledBy = ['client', 'comedian', 'mutual', 'force_majeure'];
@@ -3107,7 +3107,7 @@ router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => 
  * POST /api/admin/bookings/:id/complete
  * Mark a CONFIRMED booking as COMPLETED and notify the client.
  */
-router.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
+router.post('/api/admin/bookings/:id/complete', requireAdmin, requirePermission('bookings.approve'), (req, res) => {
     const bookingId = req.params.id;
     getBookingById(bookingId, (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -3158,7 +3158,7 @@ router.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
  * PUT /api/admin/bookings/:id/refund
  * Record that a refund has been issued for a cancelled booking.
  */
-router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.put('/api/admin/bookings/:id/refund', requireAdmin, requirePermission('payments.manage'), async (req, res) => {
     const { refund_amount, refund_reference, notes } = req.body;
     const bookingId = req.params.id;
     const amt = parseFloat(refund_amount) || 0;
