@@ -143,26 +143,36 @@
     /* ================================================================
        DRAWER — Create / Edit Role
     ================================================================ */
+    function nameToKey(name) {
+        return name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+    }
+
     function openRoleDrawer(roleId) {
         var $form = $('#rbacRoleForm');
         $form[0].reset();
         $('#rbacRoleId').val('');
-        $('#rbacRoleKey').prop('disabled', false);
         $('#rbacRoleBase').closest('.dk-field').show();
         dkMessage('#rbacRoleMsg', '', '');
 
+        // Wire auto-fill: name → key (create mode only; listener is re-set each open)
+        $('#rbacRoleName').off('input.rbacKey').on('input.rbacKey', function () {
+            $('#rbacRoleKey').val(nameToKey($(this).val()));
+        });
+
         if (roleId) {
             $('#rbacRoleDrawerTitle').text('Edit Role');
+            $('#rbacRoleName').off('input.rbacKey'); // no auto-fill in edit mode
             var role = (_rolesCache || []).find(function (r) { return r.id === roleId; });
             if (role) {
                 $('#rbacRoleId').val(role.id);
                 $('#rbacRoleName').val(role.name);
-                $('#rbacRoleKey').val(role.key).prop('disabled', true);
+                $('#rbacRoleKey').val(role.key);
                 $('#rbacRoleDesc').val(role.description || '');
                 $('#rbacRoleBase').val(role.base_role || 'manager').closest('.dk-field').hide();
             }
         } else {
             $('#rbacRoleDrawerTitle').text('New Role');
+            $('#rbacRoleKey').val(''); // start blank; fills as user types
         }
         openAtlDrawer('rbacRoleDrawer');
     }

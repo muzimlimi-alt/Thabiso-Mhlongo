@@ -8020,8 +8020,8 @@
                             <input type="text" class="dk-input" id="rbacRoleName" required placeholder="e.g. Finance Officer">
                         </div>
                         <div class="dk-field">
-                            <label class="dk-label" for="rbacRoleKey">Key <span style="font-weight:normal; color:var(--atl-muted);">(lowercase, no spaces)</span></label>
-                            <input type="text" class="dk-input" id="rbacRoleKey" required placeholder="e.g. finance_officer" pattern="[a-z0-9_\-]+">
+                            <label class="dk-label" for="rbacRoleKey">Key <span style="font-weight:normal; color:var(--atl-muted);">(auto-filled from name)</span></label>
+                            <input type="text" class="dk-input" id="rbacRoleKey" required placeholder="e.g. finance_officer" pattern="[a-z0-9_\-]+" readonly style="opacity:0.65; cursor:default;">
                         </div>
                         <div class="dk-field">
                             <label class="dk-label" for="rbacRoleBase">Clone Permissions From</label>
