@@ -41,9 +41,9 @@ function plRender() {
     });
     // the portrait sample wears the chosen field, so the tile previews the exact combination that will go live
     $('#plStagePortrait').toggleClass('is-bone', _plChoice.field === 'bone');
-    var portrait = _plChoice.style === ‘portrait’;
-    $(‘#plFields’).toggleClass(‘pl-fields--off’, true).attr(‘aria-disabled’, ‘true’);
-    $(‘#plFieldHint’).text(‘The loading screen background now follows the Public Theme setting automatically.’);
+    var portrait = _plChoice.style === 'portrait';
+    $('#plFields').toggleClass('pl-fields--off', true).attr('aria-disabled', 'true');
+    $('#plFieldHint').text('The loading screen background now follows the Public Theme setting automatically.');
 }
 
 async function loadPreloaderSettings(force) {
