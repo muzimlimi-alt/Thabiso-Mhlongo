@@ -18,6 +18,7 @@
    original source — no new attachments were needed. */
 
 // Financial State
+let _finYearEndMonth = null;
 let finStatsLoaded = false;
 let _allTransactionsCache = [];
 let _totalTransactionCount = 0;
@@ -48,7 +49,13 @@ function getPeriodDates(preset) {
         from = lqs.toISOString().split('T')[0];
         to   = lqe.toISOString().split('T')[0];
     } else if (preset === 'ytd') {
-        from = new Date(y, 0, 1).toISOString().split('T')[0];
+        var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var endIdx = _finYearEndMonth ? MONTHS.indexOf(_finYearEndMonth) : -1;
+        if (endIdx < 0) endIdx = 1;
+        var fyStartMonth = (endIdx + 1) % 12;
+        var fyStart = new Date(y, fyStartMonth, 1);
+        if (fyStart > now) fyStart = new Date(y - 1, fyStartMonth, 1);
+        from = fyStart.toISOString().split('T')[0];
         to   = now.toISOString().split('T')[0];
     } else if (preset === 'custom') {
         from = $('#finDateFrom').val() || new Date(y, m, 1).toISOString().split('T')[0];
@@ -74,6 +81,13 @@ window.onFinPeriodPresetChange = function() {
 
 // 1. Load Financial Overview Stats
 window.loadFinancialStats = async function() {
+    if (_finYearEndMonth === null) {
+        try {
+            var bp = await apiCall('/api/admin/business-profile', 'GET');
+            if (bp && bp.profile) _finYearEndMonth = bp.profile.financial_year_end || '';
+            else _finYearEndMonth = '';
+        } catch (e) { _finYearEndMonth = ''; }
+    }
     const preset = $('#finPeriodPreset').val() || 'this_month';
     const { from, to } = getPeriodDates(preset);
 
@@ -81,7 +95,7 @@ window.loadFinancialStats = async function() {
     const presetLabels = {
         this_month: 'This Month', last_month: 'Last Month',
         this_quarter: 'This Quarter', last_quarter: 'Last Quarter',
-        ytd: 'Year to Date', custom: `${from} → ${to}`
+        ytd: 'Financial Year to Date', custom: `${from} → ${to}`
     };
     $('#finPeriodLabel').text(presetLabels[preset] || 'This Month');
     $('#finStat-PeriodLabel').text(`${from} to ${to}`);
