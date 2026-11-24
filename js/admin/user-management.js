@@ -306,7 +306,14 @@
         ['#umNewUserEmail', '#umNewUserFullName', '#umNewUserPwd'].forEach(function(sel) {
             var el = qs(sel); if (el) el.value = '';
         });
-        if (qs('#umNewUserRole')) qs('#umNewUserRole').value = 'manager';
+        var roleSelR = qs('#umNewUserRole');
+        if (roleSelR && UM_ROLES.length) {
+            roleSelR.innerHTML = UM_ROLES.map(function(r) {
+                return '<option value="' + esc(r.key) + '"' + (r.key === 'manager' ? ' selected' : '') + '>' + esc(r.name) + '</option>';
+            }).join('');
+        } else if (roleSelR) {
+            roleSelR.value = 'manager';
+        }
         if (qs('#umNewUserStatus')) qs('#umNewUserStatus').value = '1';
         if (itiUmPhone && typeof itiUmPhone.setNumber === 'function') itiUmPhone.setNumber('');
         else if (qs('#umNewUserPhone')) qs('#umNewUserPhone').value = '';
@@ -371,7 +378,15 @@
             if (title) title.innerHTML = '<i class="fa-solid fa-user-pen"></i> Edit Admin Account';
             if (qs('#umNewUserEmail')) qs('#umNewUserEmail').value = user.email || '';
             if (qs('#umNewUserFullName')) qs('#umNewUserFullName').value = window.decodeStoredText(user.full_name || '');
-            if (qs('#umNewUserRole')) qs('#umNewUserRole').value = user.role || 'manager';
+            var roleSel = qs('#umNewUserRole');
+            if (roleSel && UM_ROLES.length) {
+                var targetRole = user.role || 'manager';
+                roleSel.innerHTML = UM_ROLES.map(function(r) {
+                    return '<option value="' + esc(r.key) + '"' + (r.key === targetRole ? ' selected' : '') + '>' + esc(r.name) + '</option>';
+                }).join('');
+            } else if (roleSel) {
+                roleSel.value = user.role || 'manager';
+            }
             if (statusGroup) statusGroup.style.display = '';
             if (qs('#umNewUserStatus')) qs('#umNewUserStatus').value = (user.is_active === 0 ? '0' : '1');
             if (user.phone) {
