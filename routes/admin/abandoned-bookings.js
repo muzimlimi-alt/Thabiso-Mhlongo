@@ -1,13 +1,13 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { sendAbandonedBookingReminderEmail } = require('../../lib/abandoned-booking-email');
 const router = express.Router();
 
 // ---- Admin: list abandoned bookings (search / filter / sort / paginate) ----
-router.get('/api/admin/abandoned-bookings', requireAdmin, (req, res) => {
+router.get('/api/admin/abandoned-bookings', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
     const offset = (page - 1) * limit;
@@ -40,7 +40,7 @@ router.get('/api/admin/abandoned-bookings', requireAdmin, (req, res) => {
 });
 
 // ---- Admin: recovery statistics (registered before /:id) ----
-router.get('/api/admin/abandoned-bookings/stats', requireAdmin, (req, res) => {
+router.get('/api/admin/abandoned-bookings/stats', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.all(`SELECT status, COUNT(*) AS c, COALESCE(SUM(est_value),0) AS v FROM abandoned_bookings GROUP BY status`, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false });
         const byStatus = {}; let total = 0, openValue = 0;
@@ -67,7 +67,7 @@ router.get('/api/admin/abandoned-bookings/stats', requireAdmin, (req, res) => {
 });
 
 // ---- Admin: CSV export (registered before /:id) ----
-router.get('/api/admin/abandoned-bookings/export', requireAdmin, exportRateLimiter, (req, res) => {
+router.get('/api/admin/abandoned-bookings/export', requireAdmin, requirePermission('bookings.export'), exportRateLimiter, (req, res) => {
     const cols = ['id', 'name', 'company', 'email', 'cell', 'event_name', 'event_date', 'event_type', 'event_location', 'current_step', 'furthest_step', 'consent_given', 'status', 'reminders_sent', 'last_reminder_at', 'last_activity_at', 'created_at', 'converted_booking_id', 'opt_out', 'source', 'est_value'];
     db.all(`SELECT ${cols.join(', ')} FROM abandoned_bookings ORDER BY last_activity_at DESC`, [], (err, rows) => {
         if (err) return res.status(500).send('Export failed');
@@ -80,7 +80,7 @@ router.get('/api/admin/abandoned-bookings/export', requireAdmin, exportRateLimit
 });
 
 // ---- Admin: single draft detail ----
-router.get('/api/admin/abandoned-bookings/:id', requireAdmin, (req, res) => {
+router.get('/api/admin/abandoned-bookings/:id', requireAdmin, requirePermission('bookings.view'), (req, res) => {
     db.get(`SELECT * FROM abandoned_bookings WHERE id=?`, [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Not found' });
         try { row.services = row.services_json ? JSON.parse(row.services_json) : []; } catch (e) { row.services = []; }
@@ -89,7 +89,7 @@ router.get('/api/admin/abandoned-bookings/:id', requireAdmin, (req, res) => {
 });
 
 // ---- Admin: manually resend a reminder (admin-initiated; respects opt-out) ----
-router.post('/api/admin/abandoned-bookings/:id/resend-reminder', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/abandoned-bookings/:id/resend-reminder', requireAdmin, requirePermission('bookings.manage'), (req, res) => {
     db.get(`SELECT * FROM abandoned_bookings WHERE id=?`, [req.params.id], async (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Not found' });
         if (row.opt_out) return res.status(400).json({ success: false, message: 'This contact has opted out of reminders.' });
@@ -103,7 +103,7 @@ router.post('/api/admin/abandoned-bookings/:id/resend-reminder', requireAdmin, r
 });
 
 // ---- Admin: mark as won / lost / closed (or re-open to abandoned) ----
-router.put('/api/admin/abandoned-bookings/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/abandoned-bookings/:id/status', requireAdmin, requirePermission('bookings.manage'), (req, res) => {
     const allowed = ['WON', 'LOST', 'CLOSED', 'ABANDONED'];
     const status = (req.body.status || '').toString().toUpperCase();
     if (!allowed.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status.' });

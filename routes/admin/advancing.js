@@ -4,7 +4,7 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { mutateRateLimiter } = require('../../middleware/rate-limiters');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 const { withDbTransaction } = require('../../lib/db-transaction');
@@ -105,7 +105,7 @@ async function resolveAdvancingContacts(booking, venue, packId) {
     ].filter(Boolean);
 }
 
-router.get('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) => {
+router.get('/api/admin/bookings/:id/advancing', requireAdmin, requirePermission('bookings.view'), async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await getBookingByIdAsync(bookingId);
@@ -155,7 +155,7 @@ router.get('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) =
     }
 });
 
-router.put('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) => {
+router.put('/api/admin/bookings/:id/advancing', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await getBookingIdStatusAsync(bookingId);
@@ -207,7 +207,7 @@ router.put('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) =
     }
 });
 
-router.post('/api/admin/bookings/:id/advancing/run-of-show', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/advancing/run-of-show', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const { time_label, duration_minutes, title, detail, responsible } = req.body;
         if (!title || !title.trim()) return res.status(400).json({ success: false, message: 'title is required.' });
@@ -229,7 +229,7 @@ router.post('/api/admin/bookings/:id/advancing/run-of-show', requireAdmin, async
     }
 });
 
-router.put('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req, res) => {
+router.put('/api/admin/advancing/run-of-show/:itemId', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const { time_label, duration_minutes, title, detail, responsible, booking_id } = req.body;
         if (!title || !title.trim()) return res.status(400).json({ success: false, message: 'title is required.' });
@@ -248,7 +248,7 @@ router.put('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req,
     }
 });
 
-router.delete('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req, res) => {
+router.delete('/api/admin/advancing/run-of-show/:itemId', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = req.body && req.body.booking_id;
         if (!(await verifyRosOwnership(req.params.itemId, bookingId))) {
@@ -265,7 +265,7 @@ router.delete('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (r
 // Rewrites sort_order for every id in orderedIds, atomically — the shared sqlite connection can
 // only hold one open transaction at a time (see withDbTransaction's own comment), so a multi-row
 // reorder must queue behind other guarded sections rather than issue bare sequential UPDATEs.
-router.put('/api/admin/bookings/:id/advancing/run-of-show/reorder', requireAdmin, async (req, res) => {
+router.put('/api/admin/bookings/:id/advancing/run-of-show/reorder', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     const { orderedIds } = req.body;
     if (!Array.isArray(orderedIds) || !orderedIds.length) {
         return res.status(400).json({ success: false, message: 'orderedIds must be a non-empty array.' });
@@ -302,7 +302,7 @@ router.put('/api/admin/bookings/:id/advancing/run-of-show/reorder', requireAdmin
     res.status(outcome.status).json(outcome.body);
 });
 
-router.post('/api/admin/bookings/:id/advancing/contacts', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/advancing/contacts', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const { role, name, phone, email } = req.body;
         if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'name is required.' });
@@ -319,7 +319,7 @@ router.post('/api/admin/bookings/:id/advancing/contacts', requireAdmin, async (r
     }
 });
 
-router.delete('/api/admin/advancing/contacts/:contactId', requireAdmin, async (req, res) => {
+router.delete('/api/admin/advancing/contacts/:contactId', requireAdmin, requirePermission('bookings.edit'), async (req, res) => {
     try {
         const bookingId = req.body && req.body.booking_id;
         if (!(await verifyAdvancingContactOwnership(req.params.contactId, bookingId))) {
@@ -333,7 +333,7 @@ router.delete('/api/admin/advancing/contacts/:contactId', requireAdmin, async (r
     }
 });
 
-router.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await getBookingByIdAsync(bookingId);
@@ -362,7 +362,7 @@ router.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, r
     }
 });
 
-router.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (req, res) => {
+router.get('/api/admin/bookings/:id/advancing/download', requireAdmin, requirePermission('bookings.view'), async (req, res) => {
     try {
         const pack = await dbGet("SELECT pdf_url FROM advancing_packs WHERE booking_id = ?", [req.params.id]);
         if (!pack || !pack.pdf_url) return res.status(404).json({ success: false, message: 'No advancing pack PDF on file yet.' });
@@ -385,7 +385,7 @@ router.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (re
 
 // Sends real outbound email to a third party (the venue) — restricted to manager+, matching every
 // other outbound-communication-to-a-third-party route in this codebase (e.g. requireRoleForInquiryEmail).
-router.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(['administrator', 'manager']), mutateRateLimiter, async (req, res) => {
+router.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requirePermission('bookings.manage'), mutateRateLimiter, async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await getBookingByIdAsync(bookingId);
@@ -427,7 +427,7 @@ router.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(
     }
 });
 
-router.post('/api/admin/bookings/:id/advancing/confirm', requireAdmin, async (req, res) => {
+router.post('/api/admin/bookings/:id/advancing/confirm', requireAdmin, requirePermission('bookings.manage'), async (req, res) => {
     try {
         const pack = await dbGet("SELECT id FROM advancing_packs WHERE booking_id = ?", [req.params.id]);
         if (!pack) return res.status(400).json({ success: false, message: 'No advancing pack to confirm yet.' });
