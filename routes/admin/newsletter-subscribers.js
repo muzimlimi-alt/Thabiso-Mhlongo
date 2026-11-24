@@ -20,7 +20,7 @@ const subscriberCsvUpload = multer({ storage: multer.memoryStorage(), limits: { 
 const router = express.Router();
 
 // Get all subscribers
-router.get('/api/admin/newsletter/subscribers', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
+router.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     // Generic sortable-column pair (matches the Users table's own sort convention) rather than a
     // fixed enum — this is an admin-only internal API with one caller (the Subscribers tab), so
     // there's no other consumer's contract to preserve.
@@ -59,7 +59,7 @@ router.get('/api/admin/newsletter/subscribers', requireAdmin, requirePermission(
 // KPI stats for the Subscribers tab — kept as its own lightweight endpoint (three small COUNTs)
 // rather than folded into the paginated list response, which would recompute them on every page
 // turn/search for no reason.
-router.get('/api/admin/newsletter/subscribers/stats', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
+router.get('/api/admin/newsletter/subscribers/stats', requireAdmin, (req, res) => {
     getSubscriberStats(
         (err, row) => {
             if (err) return res.status(500).json({ success: false, message: err.message });

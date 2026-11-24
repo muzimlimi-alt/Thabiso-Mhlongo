@@ -387,7 +387,7 @@ router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, requir
 const { doorView } = door;
 
 // ── door links (administrators / managers): create, list, switch off ──
-router.get('/api/admin/ticketing/events/:id/door-passes', requireAdmin, requirePermission('events.view'), async (req, res) => {
+router.get('/api/admin/ticketing/events/:id/door-passes', requireAdmin, requirePermission('events.manage'), async (req, res) => {
     try { res.json({ success: true, passes: await door.listPasses(idParam(req.params.id)) }); }
     catch (e) { fail(res, e, 'door passes'); }
 });

@@ -73,7 +73,7 @@ router.get('/api/admin/email-logs', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/settings/test-notification', requireAdmin, requirePermission('notifications.manage'), async (req, res) => {
+router.post('/api/admin/settings/test-notification', requireAdmin, requirePermission('settings.manage'), async (req, res) => {
     try {
         const to = await getNotificationEmail();
         const result = await sendEmailDirectly({
