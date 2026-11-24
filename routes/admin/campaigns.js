@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { newsletterUpload } = require('../../lib/uploads');
 const objectStorage = require('../../lib/object-storage');
 const { buildSegmentCondition, scheduledJobs } = require('../../lib/newsletter-scheduling');
@@ -27,7 +27,7 @@ const router = express.Router();
 // ==========================================
 // Admin Newsletter Dispatch Route
 // ==========================================
-router.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), async (req, res) => {
+router.post('/api/admin/campaigns', requireAdmin, requirePermission('newsletter.manage'), newsletterUpload.array('attachments', 10), async (req, res) => {
     const { subject, message, segment, segment_value } = req.body;
     const uploadedFiles = req.files || [];
 
@@ -124,7 +124,7 @@ router.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 
 // Send Test (to self) — fires one real, personalized email of the current (possibly unsaved)
 // Compose content to the logged-in admin's own address, same reasoning/pattern as the Birthday
 // tab's Send Test (Phase 3): admins can confirm rendering before committing to a real broadcast.
-router.post('/api/admin/campaigns/send-test', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), async (req, res) => {
+router.post('/api/admin/campaigns/send-test', requireAdmin, requirePermission('newsletter.manage'), newsletterUpload.none(), async (req, res) => {
     try {
         const { subject, message } = req.body;
         if (!subject || !message) return res.status(400).json({ success: false, message: 'Subject and message are required.' });
@@ -166,7 +166,7 @@ router.post('/api/admin/campaigns/send-test', requireAdmin, requireRole(['admini
 // GET /api/admin/newsletter/subscribers, which the admin UI actually calls.
 // (D11) Removed legacy GET /api/admin/campaigns — superseded by GET /api/admin/campaigns/unified
 // (the only campaigns-list route the frontend calls). The POST /api/admin/campaigns send route is unaffected.
-router.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/campaigns/:id', requireAdmin, requirePermission('newsletter.delete'), (req, res) => {
     deleteCampaign(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Campaign not found.' });
@@ -174,7 +174,7 @@ router.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administra
     });
 });
 
-router.get('/api/admin/campaigns/unified', requireAdmin, (req, res) => {
+router.get('/api/admin/campaigns/unified', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
     const validStatuses = ['all', 'sent', 'scheduled', 'failed', 'cancelled'];
     const validSorts = ['date_desc', 'date_asc', 'subject_asc'];
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -217,7 +217,7 @@ router.get('/api/admin/campaigns/unified', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/campaigns/bulk-delete', requireAdmin, requirePermission('newsletter.delete'), (req, res) => {
     const { items } = req.body;
     if (!Array.isArray(items) || !items.length) {
         return res.status(400).json({ success: false, message: 'No items specified.' });

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { getSettingVal, upsertSetting } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
@@ -137,7 +137,7 @@ router.get('/api/admin/dashboard/social_kpis', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/dashboard/social_kpis', requireAdmin, requirePermission('dashboard.view'), (req, res) => {
     const { platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override, goal_target } = req.body;
 
     if (!platform_name) {

@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext } = require('../../lib/email-context');
@@ -73,7 +73,7 @@ router.get('/api/admin/email-logs', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/settings/test-notification', requireAdmin, requirePermission('notifications.manage'), async (req, res) => {
     try {
         const to = await getNotificationEmail();
         const result = await sendEmailDirectly({
@@ -160,7 +160,7 @@ router.patch('/api/admin/reviews/:id', requireAdmin, (req, res) => {
 });
 
 // GET — bookings whose ACTIVE schedule total diverges from the booking total (reconciliation sweep)
-router.get('/api/admin/payment-schedules/mismatches', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/payment-schedules/mismatches', requireAdmin, requirePermission('finance.view'), (req, res) => {
     db.all(
         `SELECT b.id, b.name, b.event_name, b.event_type, b.date, b.status, b.total_amount,
                 (SELECT COALESCE(SUM(expected_amount),0) FROM payment_schedules ps
@@ -249,7 +249,7 @@ router.post('/api/admin/compose', requireAdmin, async (req, res) => {
  * This tool scans existing flat 'bookings' records and creates unique 'clients' and 'venues' 
  * entries, then updates the booking record with foreign key references.
  */
-router.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole(['administrator']), async (req, res) => {
+router.post('/api/admin/system/migrate-legacy-data', requireAdmin, requirePermission('settings.manage'), async (req, res) => {
     getAllBookingsFull(async (err, bookings) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         

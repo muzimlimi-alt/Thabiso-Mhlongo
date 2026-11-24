@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { resolveActor } = require('../../lib/actor');
 const {
     countInquiriesByStatus, countMyInquiries, countInquiries, updateInquiryStatus,
@@ -17,7 +17,7 @@ const router = express.Router();
 router.use(require('./inbox-sync'));
 
 // --- Inquiries ---
-router.get('/api/admin/inquiries', requireAdmin, (req, res) => {
+router.get('/api/admin/inquiries', requireAdmin, requirePermission('inquiries.view'), (req, res) => {
     const validStatuses = ['all', 'unread', 'read', 'replied', 'archived'];
     const validSorts = ['newest', 'oldest', 'name'];
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -97,7 +97,7 @@ router.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     });
 });
 
-router.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/inquiries/:id/status', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     const { status } = req.body;
     const validStatuses = ['unread', 'read', 'replied', 'archived'];
     if (!validStatuses.includes(status)) {
@@ -112,14 +112,14 @@ router.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['admini
 
 // Active admins eligible to be assigned an inquiry (deliberately narrower than /api/admin/users,
 // which is administrator-only and returns full PII) — any authenticated admin can view the list.
-router.get('/api/admin/inquiries/assignable-admins', requireAdmin, (req, res) => {
+router.get('/api/admin/inquiries/assignable-admins', requireAdmin, requirePermission('inquiries.view'), (req, res) => {
     getAssignableAdmins((err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, admins: rows });
     });
 });
 
-router.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/inquiries/:id/assign', requireAdmin, requirePermission('inquiries.assign'), (req, res) => {
     const { assigned_to } = req.body;
     if (assigned_to === null || assigned_to === undefined || assigned_to === '') {
         return unassignInquiry(req.session.adminId, req.session.role || null, req.params.id, async function(err) {
@@ -141,7 +141,7 @@ router.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['admini
     });
 });
 
-router.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/inquiries/:id/priority', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     const { priority } = req.body;
     const validPriorities = ['low', 'normal', 'high', 'urgent'];
     if (!validPriorities.includes(priority)) {
@@ -155,14 +155,14 @@ router.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['admi
 });
 
 // Distinct previously-used categories, for the tag/category autocomplete datalist.
-router.get('/api/admin/inquiries/categories', requireAdmin, (req, res) => {
+router.get('/api/admin/inquiries/categories', requireAdmin, requirePermission('inquiries.view'), (req, res) => {
     listInquiryCategories((err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, categories: (rows || []).map(r => r.category) });
     });
 });
 
-router.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
+router.put('/api/admin/inquiries/:id/category', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     const category = (req.body.category || '').trim().slice(0, 100);
     updateInquiryCategory(category || null, req.session.adminId, req.session.role || null, req.params.id, async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -171,7 +171,7 @@ router.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
     });
 });
 
-router.get('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
+router.get('/api/admin/inquiries/:id/notes', requireAdmin, requirePermission('inquiries.view'), (req, res) => {
     listInquiryNotes(
         req.params.id,
         (err, rows) => {
@@ -181,7 +181,7 @@ router.get('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
     );
 });
 
-router.post('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
+router.post('/api/admin/inquiries/:id/notes', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     const { note } = req.body;
     if (!note || !note.trim()) return res.status(400).json({ success: false, message: 'Note text is required.' });
     // Author/created_by derive from the session rather than trusting client input.
@@ -199,7 +199,7 @@ router.post('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
     });
 });
 
-router.delete('/api/admin/inquiries/:id/notes/:noteId', requireAdmin, (req, res) => {
+router.delete('/api/admin/inquiries/:id/notes/:noteId', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     deleteInquiryNote(
         req.params.noteId, req.params.id,
         function(err) {
@@ -224,7 +224,7 @@ function intakeState(rows, entity) {
     return { state, to: n.recipient_email, at: n.sent_at || n.created_at, error: state === 'failed' || state === 'attempted' ? (n.error_message || null) : null };
 }
 
-router.get('/api/admin/inquiries/:id/messages', requireAdmin, async (req, res) => {
+router.get('/api/admin/inquiries/:id/messages', requireAdmin, requirePermission('inquiries.view'), async (req, res) => {
     const id = toId(req.params.id);
     if (!id) return res.status(400).json({ success: false, message: 'Invalid inquiry.' });
     try {
@@ -246,7 +246,7 @@ router.get('/api/admin/inquiries/:id/messages', requireAdmin, async (req, res) =
 });
 
 // Send a FAILED reply again (same conversation row, new outbox entry). Both ids must belong together - a forged pair is a 404.
-router.post('/api/admin/inquiries/:id/messages/:mid/retry', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.post('/api/admin/inquiries/:id/messages/:mid/retry', requireAdmin, requirePermission('inquiries.manage'), async (req, res) => {
     const id = toId(req.params.id), mid = toId(req.params.mid);
     if (!id || !mid) return res.status(400).json({ success: false, message: 'Invalid request.' });
     try {
@@ -265,7 +265,7 @@ router.post('/api/admin/inquiries/:id/messages/:mid/retry', requireAdmin, requir
     }
 });
 
-router.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/inquiries/bulk-status', requireAdmin, requirePermission('inquiries.manage'), (req, res) => {
     const { ids, status } = req.body;
     const validStatuses = ['read', 'unread', 'replied', 'archived'];
     if (!Array.isArray(ids) || !ids.length) {
@@ -287,7 +287,7 @@ router.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['admin
     });
 });
 
-router.post('/api/admin/inquiries/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/inquiries/bulk-delete', requireAdmin, requirePermission('inquiries.delete'), (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || !ids.length) {
         return res.status(400).json({ success: false, message: 'No messages specified.' });
@@ -303,7 +303,7 @@ router.post('/api/admin/inquiries/bulk-delete', requireAdmin, requireRole(['admi
     });
 });
 
-router.delete('/api/admin/inquiries/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/inquiries/:id', requireAdmin, requirePermission('inquiries.delete'), (req, res) => {
     deleteInquiry(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });

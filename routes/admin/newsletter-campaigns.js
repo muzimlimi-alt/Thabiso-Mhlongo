@@ -5,7 +5,7 @@ const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
 const { applyMergeFields } = require('../../js/mergeFields');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const { newsletterUpload } = require('../../lib/uploads');
 const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context');
@@ -28,7 +28,7 @@ const router = express.Router();
 // --- Newsletter Drafts ---
 
 // Save Draft
-router.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
+router.post('/api/admin/newsletter/drafts', requireAdmin, requirePermission('newsletter.create'), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
     insertDraft(subject, content, function(err) {
         if (err) {
@@ -39,7 +39,7 @@ router.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administ
 });
 
 // Update Draft
-router.put('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
+router.put('/api/admin/newsletter/drafts/:id', requireAdmin, requirePermission('newsletter.edit'), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
     const { id } = req.params;
     updateDraft(subject, content, id, function(err) {
@@ -72,7 +72,7 @@ router.get('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
 });
 
 // Delete Draft
-router.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requirePermission('newsletter.delete'), (req, res) => {
     const { id } = req.params;
     deleteDraft(id, function(err) {
         if (err) {
@@ -120,7 +120,7 @@ router.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none
 });
 
 // Create Scheduled Newsletter
-router.post('/api/admin/newsletter/schedule', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
+router.post('/api/admin/newsletter/schedule', requireAdmin, requirePermission('newsletter.manage'), newsletterUpload.array('attachments', 10), (req, res) => {
     const { subject, content, scheduled_at, segment, segment_value } = req.body;
     if (!content) return res.status(400).json({ success: false, message: 'Content is required.' });
     if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
@@ -154,7 +154,7 @@ router.get('/api/admin/newsletter/schedule', requireAdmin, (req, res) => {
 });
 
 // Cancel Scheduled Newsletter
-router.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requirePermission('newsletter.manage'), (req, res) => {
     const { id } = req.params;
     // Fetch attachment paths before cancelling so we can clean up files
     getScheduledNewsletterAttachmentsIfPending(id, (fetchErr, row) => {
@@ -176,7 +176,7 @@ router.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['
 });
 
 // Update Scheduled Newsletter
-router.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
+router.put('/api/admin/newsletter/schedule/:id', requireAdmin, requirePermission('newsletter.manage'), newsletterUpload.array('attachments', 10), (req, res) => {
     const { subject, content, scheduled_at, segment, segment_value } = req.body;
     const { id } = req.params;
     const newFiles = req.files || [];
@@ -250,7 +250,7 @@ router.get('/api/admin/newsletter/birthday-settings', requireAdmin, (req, res) =
     });
 });
 
-router.put('/api/admin/newsletter/birthday-settings', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/newsletter/birthday-settings', requireAdmin, requirePermission('newsletter.manage'), (req, res) => {
     const b = req.body || {};
     const updates = {};
     if (typeof b.birthday_automation_enabled !== 'undefined') updates.birthday_automation_enabled = b.birthday_automation_enabled ? '1' : '0';
@@ -302,7 +302,7 @@ router.post('/api/admin/newsletter/birthday-settings/preview', requireAdmin, new
 // Send Test — fires one real email to birthday_test_recipient using the current (possibly unsaved)
 // template fields, so an admin can confirm it actually renders/arrives correctly before saving and
 // enabling the real automation.
-router.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), async (req, res) => {
+router.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requirePermission('newsletter.manage'), newsletterUpload.none(), async (req, res) => {
     try {
         const saved = await getBirthdaySettings();
         const settings = mergeBirthdayOverrides(saved, req.body || {});

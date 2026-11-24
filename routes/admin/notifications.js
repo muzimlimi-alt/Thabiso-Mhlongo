@@ -3,7 +3,7 @@
 // caller's role (administrator: everything; manager: operations; assistant: bookings/enquiries/subscribers) - the browser never decides.
 const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const store = require('../../lib/notify-store');
 const notify = require('../../lib/notify');
 const jobMonitor = require('../../lib/job-monitor');
@@ -16,15 +16,15 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
     res.status(500).json({ success: false, message: 'Could not complete that request.' });
 });
 
-router.get('/api/admin/notifications', requireAdmin, wrap(async (req, res) => {
+router.get('/api/admin/notifications', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     res.json({ success: true, ...(await store.list(who(req), req.query)) });
 }));
 
-router.get('/api/admin/notifications/summary', requireAdmin, wrap(async (req, res) => {
+router.get('/api/admin/notifications/summary', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     res.json({ success: true, ...(await store.summary(who(req))) });
 }));
 
-router.get('/api/admin/notifications/meta', requireAdmin, (req, res) => {
+router.get('/api/admin/notifications/meta', requireAdmin, requirePermission('notifications.view'), (req, res) => {
     const role = who(req).role;
     res.json({
         success: true, priorities: registry.PRIORITIES,
@@ -32,27 +32,27 @@ router.get('/api/admin/notifications/meta', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/notifications/read', requireAdmin, wrap(async (req, res) => {
+router.post('/api/admin/notifications/read', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
     const n = await store.setRead(who(req), ids, req.body.read !== false);
     res.json({ success: true, updated: n });
 }));
 
-router.post('/api/admin/notifications/read-all', requireAdmin, wrap(async (req, res) => {
+router.post('/api/admin/notifications/read-all', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     res.json({ success: true, updated: await store.markAllRead(who(req)) });
 }));
 
 // (Express 5: no regex inside a route path - the id is validated here. The fixed paths above - summary, meta, read, read-all - are matched first.)
 const idOf = (req) => (/^\d{1,12}$/.test(req.params.id) ? Number(req.params.id) : null);
 
-router.get('/api/admin/notifications/:id', requireAdmin, wrap(async (req, res) => {
+router.get('/api/admin/notifications/:id', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     const id = idOf(req);
     const n = id === null ? null : await store.get(who(req), id);
     if (!n) return res.status(404).json({ success: false, message: 'Notification not found.' });
     res.json({ success: true, notification: n });
 }));
 
-router.post('/api/admin/notifications/:id/:action', requireAdmin, wrap(async (req, res) => {
+router.post('/api/admin/notifications/:id/:action', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const id = idOf(req);
     if (id === null || ['ack', 'resolve', 'archive'].indexOf(req.params.action) < 0) return res.status(404).json({ success: false, message: 'Notification not found.' });
     const r = await store.transition(who(req), id, req.params.action, { note: req.body && req.body.note, req });
@@ -60,33 +60,32 @@ router.post('/api/admin/notifications/:id/:action', requireAdmin, wrap(async (re
     res.json({ success: true, notification: r.notification });
 }));
 
-router.get('/api/admin/activity', requireAdmin, wrap(async (req, res) => {
+router.get('/api/admin/activity', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     res.json({ success: true, ...(await store.activity(who(req), req.query)) });
 }));
 
 // ── preferences: every admin, for themselves ───────────────────────────────────────────────────────────────────────────────────────
-router.get('/api/admin/notification-prefs', requireAdmin, wrap(async (req, res) => {
+router.get('/api/admin/notification-prefs', requireAdmin, requirePermission('notifications.view'), wrap(async (req, res) => {
     res.json({ success: true, prefs: await store.getPrefs(who(req)), note: 'Security, financial-integrity and critical system alerts always appear, whatever is switched off here.' });
 }));
-router.put('/api/admin/notification-prefs', requireAdmin, wrap(async (req, res) => {
+router.put('/api/admin/notification-prefs', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const n = await store.setPrefs(who(req), req.body && req.body.prefs);
     res.json({ success: true, updated: n, prefs: await store.getPrefs(who(req)) });
 }));
 
 // ── business-wide rules, recipients, thresholds: administrator only ────────────────────────────────────────────────────────────────
-const ADMIN = requireRole(['administrator']);
-router.get('/api/admin/notification-rules', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.get('/api/admin/notification-rules', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     res.json({ success: true, rules: await store.getRules() });
 }));
-router.put('/api/admin/notification-rules/:event', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.put('/api/admin/notification-rules/:event', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const r = await store.setRule(who(req), req.params.event, req.body || {});
     if (!r.ok) return res.status(r.status).json({ success: false, message: r.message });
     res.json({ success: true, rules: await store.getRules() });
 }));
-router.get('/api/admin/notification-settings', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.get('/api/admin/notification-settings', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     res.json({ success: true, settings: await store.getSettings() });
 }));
-router.put('/api/admin/notification-settings', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.put('/api/admin/notification-settings', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const r = await store.setSettings(req.body || {});
     if (!r.ok) return res.status(400).json({ success: false, errors: r.errors, message: 'Some settings could not be saved.' });
     res.json({ success: true, settings: await store.getSettings() });
@@ -97,11 +96,10 @@ router.put('/api/admin/notification-settings', requireAdmin, ADMIN, wrap(async (
 const compliance = require('../../lib/compliance-monitor');
 const { logAudit } = require('../../lib/audit-log');
 const { dbRun, dbGet } = require('../../lib/db-helpers');
-const OPS = requireRole(['administrator', 'manager']);
-router.get('/api/admin/compliance-items', requireAdmin, OPS, wrap(async (req, res) => {
+router.get('/api/admin/compliance-items', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     res.json({ success: true, ...(await compliance.listItems()) });
 }));
-router.post('/api/admin/compliance-items', requireAdmin, OPS, wrap(async (req, res) => {
+router.post('/api/admin/compliance-items', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const v = compliance.validateItem(req.body || {});
     if (Object.keys(v.errors).length) return res.status(400).json({ success: false, errors: v.errors, message: Object.values(v.errors)[0] });
     const ts = new Date().toISOString();
@@ -111,7 +109,7 @@ router.post('/api/admin/compliance-items', requireAdmin, OPS, wrap(async (req, r
     compliance.runComplianceCheck().catch(() => {});
     res.json({ success: true, id: r.lastID, ...(await compliance.listItems()) });
 }));
-router.put('/api/admin/compliance-items/:id', requireAdmin, OPS, wrap(async (req, res) => {
+router.put('/api/admin/compliance-items/:id', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const id = /^\d{1,12}$/.test(req.params.id) ? Number(req.params.id) : null;
     const before = id ? await dbGet('SELECT * FROM compliance_items WHERE id = ?', [id]) : null;
     if (!before) return res.status(404).json({ success: false, message: 'Item not found.' });
@@ -123,7 +121,7 @@ router.put('/api/admin/compliance-items/:id', requireAdmin, OPS, wrap(async (req
     compliance.runComplianceCheck().catch(() => {});
     res.json({ success: true, ...(await compliance.listItems()) });
 }));
-router.delete('/api/admin/compliance-items/:id', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.delete('/api/admin/compliance-items/:id', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     const id = /^\d{1,12}$/.test(req.params.id) ? Number(req.params.id) : null;
     const before = id ? await dbGet('SELECT * FROM compliance_items WHERE id = ?', [id]) : null;
     if (!before) return res.status(404).json({ success: false, message: 'Item not found.' });
@@ -134,7 +132,7 @@ router.delete('/api/admin/compliance-items/:id', requireAdmin, ADMIN, wrap(async
 }));
 
 // ── system health (jobs, queue, open alerts) ───────────────────────────────────────────────────────────────────────────────────────
-router.get('/api/admin/system-health', requireAdmin, ADMIN, wrap(async (req, res) => {
+router.get('/api/admin/system-health', requireAdmin, requirePermission('notifications.manage'), wrap(async (req, res) => {
     res.json({ success: true, ...(await jobMonitor.health()) });
 }));
 

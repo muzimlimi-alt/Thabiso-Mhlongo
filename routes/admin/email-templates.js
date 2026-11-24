@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { SAMPLES_BY_CATEGORY } = require('../../js/emailPreviewSamples');
@@ -13,7 +13,7 @@ const router = express.Router();
 const SYSTEM_TRACK_TEMPLATE_KEYS = ['dashboard_invite', 'password_reset'];
 
 // ── Email templates: list (grouped by category client-side) + bulk assign/unassign ──
-router.get('/api/admin/email-templates', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.get('/api/admin/email-templates', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
     db.all(
         `SELECT etb.template_key, etb.category, etb.banner_id, b.name AS banner_name
          FROM email_template_banners etb
@@ -26,7 +26,7 @@ router.get('/api/admin/email-templates', requireAdmin, requireRole(['administrat
     );
 });
 
-router.put('/api/admin/email-templates/assign', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/email-templates/assign', requireAdmin, requirePermission('newsletter.manage'), (req, res) => {
     const { template_keys, banner_id } = req.body;
     if (!Array.isArray(template_keys) || template_keys.length === 0) {
         return res.status(400).json({ success: false, message: 'template_keys must be a non-empty array.' });
@@ -60,7 +60,7 @@ router.put('/api/admin/email-templates/assign', requireAdmin, requireRole(['admi
 
 // Live preview: renders a template's category-generic sample body with its REAL currently-assigned
 // banner (or the text-headline fallback, matching exactly what a real send would look like).
-router.get('/api/admin/email-templates/:key/preview', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.get('/api/admin/email-templates/:key/preview', requireAdmin, requirePermission('newsletter.view'), async (req, res) => {
     const key = req.params.key;
     if (SYSTEM_TRACK_TEMPLATE_KEYS.includes(key)) {
         return res.status(400).json({ success: false, message: 'This template uses the SYSTEM track, so banners are not used and there is no banner preview for it.' });

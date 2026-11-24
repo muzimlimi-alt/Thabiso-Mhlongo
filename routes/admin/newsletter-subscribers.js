@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const multer = require('multer');
 const { requireAdmin } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/rbac');
+const { requirePermission } = require('../../middleware/rbac');
 const {
     countSubscribers, listSubscribers, getSubscriberStats, insertSubscriberManual, updateSubscriberProfile,
     getSubscriberForStatusToggle, updateSubscriberStatus, deleteSubscriber, bulkUpdateSubscriberStatus,
@@ -20,7 +20,7 @@ const subscriberCsvUpload = multer({ storage: multer.memoryStorage(), limits: { 
 const router = express.Router();
 
 // Get all subscribers
-router.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
+router.get('/api/admin/newsletter/subscribers', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
     // Generic sortable-column pair (matches the Users table's own sort convention) rather than a
     // fixed enum — this is an admin-only internal API with one caller (the Subscribers tab), so
     // there's no other consumer's contract to preserve.
@@ -59,7 +59,7 @@ router.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
 // KPI stats for the Subscribers tab — kept as its own lightweight endpoint (three small COUNTs)
 // rather than folded into the paginated list response, which would recompute them on every page
 // turn/search for no reason.
-router.get('/api/admin/newsletter/subscribers/stats', requireAdmin, (req, res) => {
+router.get('/api/admin/newsletter/subscribers/stats', requireAdmin, requirePermission('newsletter.view'), (req, res) => {
     getSubscriberStats(
         (err, row) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
@@ -72,7 +72,7 @@ router.get('/api/admin/newsletter/subscribers/stats', requireAdmin, (req, res) =
 });
 
 // Add a subscriber manually
-router.post('/api/admin/newsletter/subscribers', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.post('/api/admin/newsletter/subscribers', requireAdmin, requirePermission('newsletter.create'), (req, res) => {
     const { email } = req.body;
     const first_name = (typeof req.body.first_name === 'string') ? sanitizeEmailInput(req.body.first_name).slice(0, 100) : null;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
@@ -99,7 +99,7 @@ router.post('/api/admin/newsletter/subscribers', requireAdmin, requireRole(['adm
 
 // Update a subscriber's personalization/profile fields — kept separate from the status-toggle
 // endpoint below since that one is already wired to bulk actions and shouldn't be overloaded.
-router.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requirePermission('newsletter.edit'), (req, res) => {
     const subscriberId = req.params.id;
     const adminId = req.session.adminId;
 
@@ -151,7 +151,7 @@ router.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['
 // with the 404-on-no-change guard lives below ("Delete subscriber permanently").
 
 // Toggle subscriber status (Active/Inactive)
-router.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requirePermission('newsletter.manage'), (req, res) => {
     const subscriberId = req.params.id;
     const { status } = req.body; // Expects 'active' or 'inactive'
     const adminId = req.session.adminId;
@@ -179,7 +179,7 @@ router.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, require
 });
 
 // Delete subscriber permanently
-router.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, requirePermission('newsletter.delete'), (req, res) => {
     const subscriberId = req.params.id;
 
     deleteSubscriber(subscriberId, function(err) {
@@ -190,7 +190,7 @@ router.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole
 });
 
 // Bulk Toggle Subscriber Status
-router.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+router.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requirePermission('newsletter.manage'), (req, res) => {
     const { ids, status } = req.body;
     const adminId = req.session.adminId;
 
@@ -228,7 +228,7 @@ router.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requir
 });
 
 // Bulk Delete Subscribers
-router.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, requirePermission('newsletter.delete'), (req, res) => {
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || !ids.length) {
@@ -244,7 +244,7 @@ router.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, requi
 });
 
 // Bulk Import Subscribers via CSV
-router.post('/api/admin/newsletter/subscribers/import', requireAdmin, requireRole(['administrator', 'manager']), subscriberCsvUpload.single('csv'), async (req, res) => {
+router.post('/api/admin/newsletter/subscribers/import', requireAdmin, requirePermission('newsletter.manage'), subscriberCsvUpload.single('csv'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
