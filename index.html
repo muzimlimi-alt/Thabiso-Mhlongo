@@ -64,6 +64,7 @@
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
 	<link rel="stylesheet" href="css/public/redesign.css?v=39">
+	<link rel="stylesheet" href="css/public/theme-bone.css?v=1">
 	<link rel="stylesheet" href="css/public/faq.css?v=4">
 	<link rel="stylesheet" href="css/public/tracking-modal.css?v=9">
 	<link rel="stylesheet" href="css/components/notifications.css">
@@ -78,6 +79,24 @@
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
 	     LAST of the project stylesheets: it relied on being after every <link>. -->
 	<link rel="stylesheet" href="css/public/booking-form.css?v=8">
+
+	<!-- Public website theme: Onyx (dark, the default) or Bone (light editorial). The server writes the admin's
+	     choice in place of the token below (lib/homepage-render.js). Sets data-site-theme on <html> before first
+	     paint — theme-bone.css reads that attribute. Also updates theme-color meta for the browser chrome. -->
+	<script id="tmThemeBoot">
+	(function () {
+		try {
+			var v = /*TM_THEME*/null;
+			if (v && typeof v === 'string') { try { localStorage.setItem('tm_site_theme', v); } catch (e) {} }
+			else { try { v = localStorage.getItem('tm_site_theme'); } catch (e) {} }
+			if (v === 'bone') {
+				document.documentElement.setAttribute('data-site-theme', 'bone');
+				var mc = document.querySelector('meta[name="theme-color"]');
+				if (mc) mc.setAttribute('content', '#f5f3ef');
+			}
+		} catch (e) {}
+	})();
+	</script>
 
 	<!-- No-FOUC section visibility: hide sections the admin turned off (and their nav links) before first paint.
 	     The server writes the current map in place of the token below (lib/homepage-render.js); then it is authoritative and
@@ -122,7 +141,9 @@
 			if (v && typeof v === 'object') { try { localStorage.setItem('tm_preloader', JSON.stringify(v)); } catch (e) {} }
 			else { try { v = JSON.parse(localStorage.getItem('tm_preloader') || '{}'); } catch (e) { v = {}; } }
 			window.__tmPreloaderStyle = v && v.style;
-			window.__tmPreloaderField = v && v.field;
+			// preloader field inherits from the public theme — single source of truth
+			var siteTheme = document.documentElement.getAttribute('data-site-theme');
+			window.__tmPreloaderField = (siteTheme === 'bone') ? 'bone' : (v && v.field);
 			if (window.__tmPreloaderStyle === 'portrait') {
 				var l = document.createElement('link');
 				l.rel = 'preload'; l.as = 'image'; l.href = 'images/preloader/portrait-mark.webp?v=1'; l.type = 'image/webp';

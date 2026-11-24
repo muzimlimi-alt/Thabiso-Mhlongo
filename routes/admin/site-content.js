@@ -5,7 +5,7 @@ const { getAllBookingsForMigration, updateBookingClientVenue } = require('../../
 const { upsertSetting } = require('../../database/repositories/settings.repository');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { unescapeHtml, sanitizeAboutHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
-const { PRELOADER_STYLES, PRELOADER_FIELDS } = require('../../lib/homepage-content');
+const { PRELOADER_STYLES, PRELOADER_FIELDS, PUBLIC_THEMES } = require('../../lib/homepage-content');
 const { resolveActor } = require('../../lib/actor');
 const { logAudit } = require('../../lib/audit-log');
 const router = express.Router();
@@ -258,6 +258,10 @@ router.put('/api/admin/site-content', requirePermission('site-content.manage'), 
     // fields are ever stored, so nothing can reach the page that the loader would not recognise.
     if (typeof b.preloader_style === 'string' && PRELOADER_STYLES.indexOf(b.preloader_style) !== -1) updates.preloader_style = b.preloader_style;
     if (typeof b.preloader_field === 'string' && PRELOADER_FIELDS.indexOf(b.preloader_field) !== -1) updates.preloader_field = b.preloader_field;
+    if (typeof b.public_theme === 'string' && PUBLIC_THEMES.indexOf(b.public_theme) !== -1) {
+        updates.public_theme = b.public_theme;
+        updates.preloader_field = b.public_theme;
+    }
     if (Array.isArray(b.features_items)) {
         const cf = b.features_items.slice(0, 12).map(it => ({
             title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 60),

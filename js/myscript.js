@@ -442,6 +442,24 @@ $(function() {
             if (data.preloader && data.preloader.style) {
                 try { localStorage.setItem('tm_preloader', JSON.stringify({ style: data.preloader.style, field: data.preloader.field || 'onyx' })); } catch (e) {}
             }
+            // Public theme: cache for the #tmThemeBoot head script on the next load. If the server's answer disagrees with what the boot
+            // script set (stale cache, or admin changed the theme while this page was open), apply it now so the visitor does not have to
+            // refresh — the token overrides in theme-bone.css respond to data-site-theme on <html>.
+            if (data.public_theme) {
+                try { localStorage.setItem('tm_site_theme', data.public_theme); } catch (e) {}
+                var current = document.documentElement.getAttribute('data-site-theme') || 'onyx';
+                if (data.public_theme !== current) {
+                    if (data.public_theme === 'bone') {
+                        document.documentElement.setAttribute('data-site-theme', 'bone');
+                        var mc = document.querySelector('meta[name="theme-color"]');
+                        if (mc) mc.setAttribute('content', '#f5f3ef');
+                    } else {
+                        document.documentElement.removeAttribute('data-site-theme');
+                        var mc2 = document.querySelector('meta[name="theme-color"]');
+                        if (mc2) mc2.setAttribute('content', '#0a0a0a');
+                    }
+                }
+            }
             if (data.hero_tagline && data.hero_tagline.trim()) $('.tm-hero__tagline').text(data.hero_tagline);
             if (data.hero_subtitle && data.hero_subtitle.trim()) $('.tm-hero__subtitle').html(data.hero_subtitle);
             var s = data.services || {};

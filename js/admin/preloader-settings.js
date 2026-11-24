@@ -41,11 +41,9 @@ function plRender() {
     });
     // the portrait sample wears the chosen field, so the tile previews the exact combination that will go live
     $('#plStagePortrait').toggleClass('is-bone', _plChoice.field === 'bone');
-    var portrait = _plChoice.style === 'portrait';
-    $('#plFields').toggleClass('pl-fields--off', !portrait).attr('aria-disabled', portrait ? 'false' : 'true');
-    $('#plFieldHint').text(portrait
-        ? 'The background the portrait sits on.'
-        : 'Only applies to the Portrait screen — the Wordmark always uses the site’s near-black.');
+    var portrait = _plChoice.style === ‘portrait’;
+    $(‘#plFields’).toggleClass(‘pl-fields--off’, true).attr(‘aria-disabled’, ‘true’);
+    $(‘#plFieldHint’).text(‘The loading screen background now follows the Public Theme setting automatically.’);
 }
 
 async function loadPreloaderSettings(force) {
@@ -92,7 +90,7 @@ $(document).on('click', '#plPreview', function () {
 // ── saving ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 $(document).on('click', '#plSave', async function () {
     var $btn = $(this), orig = $btn.html();
-    if (_plSaved && _plSaved.style === _plChoice.style && _plSaved.field === _plChoice.field) {
+    if (_plSaved && _plSaved.style === _plChoice.style) {
         if (window.notificationService) window.notificationService.showInfo('That is already the loading screen in use.');
         return;
     }
@@ -104,7 +102,7 @@ $(document).on('click', '#plSave', async function () {
 
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
     try {
-        await apiCall('/api/admin/site-content', 'PUT', { preloader_style: _plChoice.style, preloader_field: _plChoice.field });
+        await apiCall('/api/admin/site-content', 'PUT', { preloader_style: _plChoice.style });
         _plSaved = { style: _plChoice.style, field: _plChoice.field };
         plCache(_plChoice);
         plRender();

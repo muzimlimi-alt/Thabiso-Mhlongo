@@ -1,0 +1,315 @@
+/* =====================================================================
+   PUBLIC WEBSITE — BONE THEME
+   Warm off-white editorial identity. Activated by data-site-theme="bone"
+   on <html>, written server-side (lib/homepage-render.js) and by the
+   no-FOUC boot script in index.html.
+
+   ARCHITECTURE:
+   redesign.css defines every colour as a CSS custom property on :root.
+   This file overrides only those tokens — most selectors in redesign.css
+   already read them, so they follow automatically. The handful of
+   hardcoded dark values (hero gradient stops, newsletter h2 color:#fff,
+   footer brand color:#fff, scrollbar literals) are overridden here by
+   selector.
+
+   Typography is UNCHANGED — both themes share Cormorant Garamond display
+   and Outfit body, preserving brand identity.
+
+   LOAD ORDER: immediately after redesign.css in index.html.
+   ===================================================================== */
+
+/* ---------- TOKEN OVERRIDES ---------- */
+:root[data-site-theme="bone"] {
+  /* Background Layers — warm ivory hierarchy */
+  --bg-page:     #f5f3ef;
+  --bg-section:  #eae7e1;
+  --bg-surface:  #faf8f5;
+  --bg-elevated: #f0ede7;
+  --bg-glass:    rgba(245, 243, 239, 0.85);
+
+  /* Brand — restrained champagne gold on light ground */
+  --y-base:  #8a6e2f;
+  --y-hover: #6d5624;
+  --y-light: #3d2e12;
+  --y-dark:  #c4a865;
+  --y-muted: rgba(138, 110, 47, 0.12);
+  --y-glow:  rgba(138, 110, 47, 0.22);
+
+  /* Text — graphite hierarchy */
+  --text-primary:   #1a1816;
+  --text-secondary: #5c5650;
+  --text-muted:     #8a847c;
+  --text-inverse:   #faf8f5;
+
+  /* Accent colours tuned for light ground */
+  --accent-red:   #c0362c;
+  --accent-gold:  #8a6e2f;
+  --accent-green: #1f7a3d;
+  --accent-blue:  #1d4ed8;
+
+  /* Semantic */
+  --success:      #1f7a3d;
+  --success-dim:  rgba(31, 122, 61, 0.12);
+  --success-glow: rgba(31, 122, 61, 0.22);
+  --error:   #c0362c;
+  --warning: #9a6700;
+  --info:    #1d4ed8;
+
+  /* Availability status — tuned for light background */
+  --status-available-rgb: 46, 125, 50;
+  --status-reserved-rgb:  200, 120, 0;
+  --status-blocked-rgb:   192, 54, 44;
+  --status-muted-rgb:     138, 132, 124;
+
+  /* Borders — dark on light */
+  --border-low:     rgba(26, 24, 22, 0.08);
+  --border-default: rgba(26, 24, 22, 0.14);
+  --border-strong:  rgba(26, 24, 22, 0.28);
+
+  /* Shadows — softer on light */
+  --sh-xs: 0 1px 2px rgba(26, 24, 22, 0.04);
+  --sh-sm: 0 1px 3px rgba(26, 24, 22, 0.06);
+  --sh-md: 0 4px 20px rgba(26, 24, 22, 0.08);
+  --sh-lg: 0 8px 40px rgba(26, 24, 22, 0.10);
+  --sh-xl: 0 20px 60px rgba(26, 24, 22, 0.14);
+}
+
+/* Bridge the --atl-* aliases for components/notifications.css on the public page */
+:root[data-site-theme="bone"] body:not(.admin-body) {
+  --atl-card:         var(--bg-surface);
+  --atl-surface2:     var(--bg-elevated);
+  --atl-ink:          var(--text-primary);
+  --atl-muted:        var(--text-muted);
+  --atl-line:         var(--border-low);
+  --atl-amber:        var(--y-base);
+  --atl-amber-hover:  var(--y-hover);
+}
+
+/* ---------- SCROLLBAR ---------- */
+:root[data-site-theme="bone"] ::-webkit-scrollbar-track { background: var(--bg-page); }
+:root[data-site-theme="bone"] ::-webkit-scrollbar-thumb { background: rgba(26,24,22,0.18); border-color: var(--bg-page); }
+:root[data-site-theme="bone"] ::-webkit-scrollbar-thumb:hover { background: var(--y-base); border-color: var(--y-base); }
+:root[data-site-theme="bone"] * { scrollbar-color: rgba(26,24,22,0.18) var(--bg-page); }
+
+/* ---------- SELECTION ---------- */
+:root[data-site-theme="bone"] ::selection { background: var(--y-muted); color: var(--text-primary); }
+
+/* ---------- HEADER / NAVBAR ---------- */
+:root[data-site-theme="bone"] header .navbar-default { background: rgba(245, 243, 239, 0.88); }
+:root[data-site-theme="bone"] .tm-header.is-scrolled { background: rgba(245, 243, 239, 0.96) !important; }
+:root[data-site-theme="bone"] .tm-mobile-menu { background: var(--bg-page); }
+
+/* theme-color meta is updated by the boot script */
+
+/* ---------- HERO ---------- */
+:root[data-site-theme="bone"] .tm-hero {
+  background: linear-gradient(135deg, #e8e5df 0%, var(--bg-page) 50%, #e8e5df 100%);
+}
+:root[data-site-theme="bone"] .tm-hero__bg {
+  opacity: 0.08;
+}
+:root[data-site-theme="bone"] #featured.carousel {
+  background: var(--bg-section);
+}
+:root[data-site-theme="bone"] #featured .carousel-inner > .item img {
+  filter: saturate(0.85) contrast(1.05) brightness(0.75);
+}
+:root[data-site-theme="bone"] #featured::after {
+  background:
+    linear-gradient(180deg, rgba(245,243,239,0.45) 0%, rgba(245,243,239,0.2) 35%, rgba(245,243,239,0.45) 70%, rgba(245,243,239,0.92) 100%),
+    linear-gradient(90deg, rgba(245,243,239,0.35), transparent 40%, transparent 60%, rgba(245,243,239,0.35));
+}
+
+/* ---------- FEATURES ---------- */
+:root[data-site-theme="bone"] .tm-features { background: var(--bg-section); }
+
+/* ---------- SERVICES ---------- */
+:root[data-site-theme="bone"] .tm-service__bg--custom {
+  background-color: var(--bg-section);
+  background-image: linear-gradient(135deg, rgba(138,110,47,0.10), transparent 60%);
+}
+:root[data-site-theme="bone"] .tm-service__overlay {
+  background: linear-gradient(180deg, rgba(245,243,239,0.05), rgba(26,24,22,0.55));
+}
+:root[data-site-theme="bone"] .tm-service__tag { background: var(--y-base); color: var(--text-inverse); }
+
+/* ---------- MILESTONES ---------- */
+:root[data-site-theme="bone"] .ms-option.is-active .ms-option__wash {
+  background: linear-gradient(0deg, rgba(245,243,239,0.92) 0%, rgba(245,243,239,0.5) 45%, rgba(245,243,239,0.2) 100%);
+}
+
+/* ---------- ACCOLADES ---------- */
+:root[data-site-theme="bone"] .acc-detail__header {
+  background: radial-gradient(120% 90% at 50% 0%, rgba(138,110,47,0.08) 0%, rgba(138,110,47,0) 60%), var(--bg-section);
+}
+
+/* ---------- CAREER TIMELINE ---------- */
+:root[data-site-theme="bone"] .tl-line { background: var(--border-default); }
+:root[data-site-theme="bone"] .tl-dot {
+  background: var(--bg-surface);
+  border-color: rgba(138,110,47,0.45);
+}
+:root[data-site-theme="bone"] .tl-card {
+  background: var(--bg-page);
+  border-color: rgba(138,110,47,0.30);
+}
+:root[data-site-theme="bone"] .tl-card::before {
+  background: linear-gradient(160deg, rgba(138,110,47,0.06), rgba(26,24,22,0.01));
+}
+:root[data-site-theme="bone"] .tl-card:hover::before {
+  background: linear-gradient(160deg, rgba(138,110,47,0.12), rgba(138,110,47,0.03));
+}
+
+/* ---------- TEAM ---------- */
+:root[data-site-theme="bone"] .tm-team::before {
+  background: radial-gradient(closest-side, rgba(138,110,47,0.08), rgba(138,110,47,0.02) 55%, transparent 75%);
+}
+:root[data-site-theme="bone"] .tm-team__card { background: var(--bg-elevated); }
+:root[data-site-theme="bone"] .tm-team__overlay {
+  background: linear-gradient(180deg, transparent, rgba(245,243,239,0.85));
+}
+:root[data-site-theme="bone"] .tm-team__cta {
+  background: linear-gradient(150deg, var(--y-base), var(--y-dark));
+  color: var(--text-inverse);
+}
+:root[data-site-theme="bone"] .tm-team__social-row {
+  background: linear-gradient(95deg, rgba(138,110,47,0.10), rgba(138,110,47,0.02) 60%, transparent);
+}
+:root[data-site-theme="bone"] .tm-team__social-line {
+  background: linear-gradient(90deg, var(--y-base), rgba(138,110,47,0.15));
+}
+
+/* ---------- GALLERY ---------- */
+:root[data-site-theme="bone"] .gal-overlay {
+  background: linear-gradient(180deg, transparent 60%, rgba(26,24,22,0.45));
+}
+
+/* ---------- SOCIAL ---------- */
+:root[data-site-theme="bone"] .tm-social { background: var(--bg-section); }
+
+/* ---------- EVENTS ---------- */
+:root[data-site-theme="bone"] .evt-card__content { background: var(--bg-surface); }
+:root[data-site-theme="bone"] .evt-card__meta { background: var(--bg-elevated); }
+
+/* ---------- NEWSLETTER ---------- */
+:root[data-site-theme="bone"] .tm-newsletter {
+  background: linear-gradient(135deg, #e0ddd7 0%, var(--bg-section) 50%, #e0ddd7 100%);
+}
+:root[data-site-theme="bone"] .tm-newsletter::before {
+  opacity: 0.08;
+  background:
+    radial-gradient(ellipse at 30% 50%, var(--y-glow), transparent 60%),
+    radial-gradient(ellipse at 70% 50%, rgba(138,110,47,0.12), transparent 50%);
+}
+:root[data-site-theme="bone"] .tm-newsletter h2 { color: var(--text-primary) !important; }
+:root[data-site-theme="bone"] .tm-newsletter h2 em { color: var(--y-base) !important; }
+:root[data-site-theme="bone"] .tm-newsletter > .tm-container > .tm-newsletter__inner > p {
+  color: var(--text-secondary);
+}
+
+/* ---------- TESTIMONIALS ---------- */
+:root[data-site-theme="bone"] .tm-testimonials { background: var(--bg-section); }
+:root[data-site-theme="bone"] .ts-card { background: var(--bg-surface); }
+
+/* ---------- CONTACT ---------- */
+:root[data-site-theme="bone"] .tm-contact { background: var(--bg-surface); }
+:root[data-site-theme="bone"] .tm-contact .form-control {
+  background: var(--bg-page) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+}
+
+/* ---------- FAQ ---------- */
+:root[data-site-theme="bone"] .faq-item { background: var(--bg-surface); }
+
+/* ---------- FOOTER ---------- */
+:root[data-site-theme="bone"] .tm-footer { background: var(--bg-page); }
+:root[data-site-theme="bone"] .tm-footer::before {
+  background: linear-gradient(90deg, transparent, var(--y-base), transparent);
+}
+:root[data-site-theme="bone"] .tm-footer__brand-name { color: var(--text-primary); }
+:root[data-site-theme="bone"] .tm-footer__brand-name em { color: var(--y-base); }
+:root[data-site-theme="bone"] .tm-footer__copy { color: var(--text-secondary); }
+
+/* ---------- BUTTONS ---------- */
+:root[data-site-theme="bone"] .btn-primary,
+:root[data-site-theme="bone"] .tm-btn--primary {
+  background: var(--y-base) !important;
+  color: var(--text-inverse) !important;
+  border-color: var(--y-base) !important;
+}
+:root[data-site-theme="bone"] .btn-primary:hover,
+:root[data-site-theme="bone"] .tm-btn--primary:hover {
+  background: var(--y-hover) !important;
+  border-color: var(--y-hover) !important;
+}
+:root[data-site-theme="bone"] .btn-outline,
+:root[data-site-theme="bone"] .tm-btn--outline {
+  border-color: var(--y-base) !important;
+  color: var(--y-base) !important;
+}
+:root[data-site-theme="bone"] .btn-outline:hover,
+:root[data-site-theme="bone"] .tm-btn--outline:hover {
+  background: var(--y-base) !important;
+  color: var(--text-inverse) !important;
+}
+
+/* ---------- FORM INPUTS (global) ---------- */
+:root[data-site-theme="bone"] .form-control,
+:root[data-site-theme="bone"] .tm-nl-input {
+  background: var(--bg-page) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+}
+:root[data-site-theme="bone"] .form-control:focus,
+:root[data-site-theme="bone"] .tm-nl-input:focus {
+  border-color: var(--y-base) !important;
+  box-shadow: 0 0 0 3px var(--y-muted) !important;
+}
+:root[data-site-theme="bone"] .form-control::placeholder,
+:root[data-site-theme="bone"] .tm-nl-input::placeholder { color: var(--text-muted); }
+
+/* ---------- MODAL BACKDROPS ---------- */
+:root[data-site-theme="bone"] .modal-backdrop.in { background: rgba(26,24,22,0.5) !important; }
+
+/* ---------- BOOKING DRAWER ---------- */
+:root[data-site-theme="bone"] .bk-drawer__panel { background: var(--bg-page) !important; }
+:root[data-site-theme="bone"] .bk-step__title { color: var(--text-primary); }
+
+/* ---------- TRACKING DRAWER ---------- */
+:root[data-site-theme="bone"] .trk-drawer__panel { background: var(--bg-page) !important; }
+
+/* ---------- PROGRESS BAR ---------- */
+:root[data-site-theme="bone"] .bk-progress__track {
+  background: var(--border-low);
+}
+
+/* ---------- ANNOUNCEMENT BAR ---------- */
+:root[data-site-theme="bone"] .tm-announcement {
+  background: var(--bg-section);
+  color: var(--text-primary);
+}
+
+/* ---------- HERO SCROLL INDICATOR ---------- */
+:root[data-site-theme="bone"] .tm-hero__scroll-line { background: var(--text-muted); }
+
+/* ---------- BOOKING FORM HARDCODED OVERRIDES ---------- */
+:root[data-site-theme="bone"] .bk-sticky-total {
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-section) 100%);
+  border-top-color: rgba(138, 110, 47, 0.25);
+  box-shadow: 0 -10px 20px rgba(26, 24, 22, 0.08);
+}
+:root[data-site-theme="bone"] .bk-slot-dot--busy {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+/* ---------- DRAWER PANELS ---------- */
+:root[data-site-theme="bone"] .pub-drawer__panel {
+  background: var(--bg-page) !important;
+}
+
+/* ---------- FOCUS RING ---------- */
+:root[data-site-theme="bone"] :focus-visible {
+  outline-color: var(--y-base) !important;
+}

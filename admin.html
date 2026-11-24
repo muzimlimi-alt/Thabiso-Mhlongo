@@ -7074,6 +7074,7 @@
                         <button class="atl-tab-btn active" data-um-tab="brandPanelIdentity" role="tab" aria-selected="true"><i class="fa-solid fa-fingerprint"></i> Identity</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelHomepage" role="tab" aria-selected="false"><i class="fa-solid fa-table-cells-large"></i> Homepage Sections</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelPreloader" role="tab" aria-selected="false"><i class="fa-solid fa-spinner"></i> Preloader</button>
+                        <button class="atl-tab-btn" data-um-tab="brandPanelPublicTheme" role="tab" aria-selected="false"><i class="fa-solid fa-sun"></i> Public Theme</button>
                         <button class="atl-tab-btn" data-um-tab="apPanelAppearance" role="tab" aria-selected="false"><i class="fa-solid fa-display"></i> Admin Appearance</button>
                         <button class="atl-tab-btn" data-um-tab="apPanelLogin" role="tab" aria-selected="false"><i class="fa-solid fa-right-to-bracket"></i> Sign-in Page</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
@@ -7304,6 +7305,65 @@
                         </div>
                     </div>
 
+
+                    <!-- Public Website Theme: Onyx (dark editorial) or Bone (light editorial). Single source of truth
+                         for the public site's visual identity AND its preloader field. -->
+                    <div class="um-panel" id="brandPanelPublicTheme">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-sun"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">Public Website Theme</h4>
+                                    <p class="um-section-desc">Choose the visual identity visitors experience on the public website. The loading screen automatically matches the selected theme. This does not affect the admin portal&rsquo;s own appearance.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+
+                            <div id="ptLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading&hellip;</div>
+
+                            <div class="pt-options" role="radiogroup" aria-label="Public website theme">
+                                <div class="pt-option" id="ptOptOnyx" role="radio" tabindex="0" aria-checked="false" data-theme="onyx">
+                                    <span class="pt-option__check"><i class="fa-solid fa-check"></i></span>
+                                    <div class="pt-stage pt-stage--onyx" aria-hidden="true">
+                                        <div class="pt-swatch">
+                                            <div class="pt-swatch__bg" style="background:#0a0a0a;"></div>
+                                            <div class="pt-swatch__accent" style="background:#D4AF37;"></div>
+                                            <div class="pt-swatch__text" style="background:#ffffff;"></div>
+                                            <div class="pt-swatch__text pt-swatch__text--dim" style="background:#b0b0b0;"></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="pt-option__label">Onyx <span class="pt-option__badge" id="ptBadgeOnyx">Current</span></div>
+                                        <p class="pt-option__desc">Dark editorial identity. Obsidian and black backgrounds with gold accents and highlights. The site&rsquo;s original look.</p>
+                                    </div>
+                                </div>
+
+                                <div class="pt-option" id="ptOptBone" role="radio" tabindex="0" aria-checked="false" data-theme="bone">
+                                    <span class="pt-option__check"><i class="fa-solid fa-check"></i></span>
+                                    <div class="pt-stage pt-stage--bone" aria-hidden="true">
+                                        <div class="pt-swatch">
+                                            <div class="pt-swatch__bg" style="background:#f5f3ef;"></div>
+                                            <div class="pt-swatch__accent" style="background:#8a6e2f;"></div>
+                                            <div class="pt-swatch__text" style="background:#1a1816;"></div>
+                                            <div class="pt-swatch__text pt-swatch__text--dim" style="background:#5c5650;"></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="pt-option__label">Bone <span class="pt-option__badge" id="ptBadgeBone">Current</span></div>
+                                        <p class="pt-option__desc">Light editorial identity. Warm off-white and ivory backgrounds with graphite typography and restrained champagne-gold accents. Fashion-house aesthetic.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="um-settings-save" style="margin-top:22px;">
+                                <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changes go live on the public site the moment you save. The loading screen automatically matches.</span>
+                                <span style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <button type="button" class="atl-btn atl-btn--ghost" id="ptPreview"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Preview Website</button>
+                                    <button type="button" class="atl-btn atl-btn--primary" id="ptSave"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes</button>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Admin Appearance + Sign-in Page: moved here from the former Admin Portal page -->
                     <div class="um-panel" id="apPanelAppearance">
@@ -12898,6 +12958,7 @@
     <link rel="stylesheet" href="css/admin/20-calendar-filters.css">
     <link rel="stylesheet" href="css/admin/21-rbac-matrix.css">
     <link rel="stylesheet" href="css/admin/22-preloader-settings.css">
+    <link rel="stylesheet" href="css/admin/23-public-theme.css">
     <!-- Admin shell (sidebar, top bar, account menu) — a copy of the O'luhle/TOCA admin shell.
          After every admin section sheet so it wins over their !important shell rules; before
          core/appearance.css so the Presence axis can still override density on top. -->
@@ -14390,6 +14451,7 @@
     <script src="js/admin/system-settings.js?v=nav8"></script>
     <!-- Site Appearance > Preloader: picks which loading screen js/tm-preloader.js builds. -->
     <script src="js/admin/preloader-settings.js?v=1"></script>
+    <script src="js/admin/public-theme.js?v=1"></script>
     <script src="js/admin/business-profile.js?v=8"></script>
     <script src="js/admin/google-calendar.js?v=4"></script>
     <script src="js/admin/financials.js?v=3"></script>
