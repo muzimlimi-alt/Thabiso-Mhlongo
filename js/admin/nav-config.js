@@ -103,7 +103,7 @@
         function applyRole(role) {
             var list = doc.querySelector('.admin-sidebar');
             if (list) {
-                [].forEach.call(list.querySelectorAll('[data-role-hidden]'), function (el) { el.removeAttribute('data-role-hidden'); el.style.display = ''; });
+                [].forEach.call(list.querySelectorAll('[data-role-hidden]'), function (el) { el.removeAttribute('data-role-hidden'); el.style.removeProperty('display'); });
                 [].forEach.call(list.querySelectorAll('a.tm-nav-link'), function (a) {
                     var id = (a.getAttribute('href') || '').replace('#', '');
                     if (!inSidebar(role, id)) { var li = a.closest('li'); if (li) hide(li); }
@@ -122,10 +122,14 @@
             }
             [].forEach.call(doc.querySelectorAll('[id^="dashStat-"]'), function (el) {
                 var card = el.closest('.db-stat-card');
-                if (card) card.style.display = canAccess(role, el.id.replace('dashStat-', '')) ? '' : 'none';
+                if (card) {
+                    if (canAccess(role, el.id.replace('dashStat-', ''))) card.style.removeProperty('display');
+                    else card.style.display = 'none';
+                }
             });
             [].forEach.call(doc.querySelectorAll('#admProfileMenu [data-menu-nav]'), function (a) {
-                a.style.display = canAccess(role, a.getAttribute('data-menu-nav')) ? '' : 'none';
+                if (canAccess(role, a.getAttribute('data-menu-nav'))) a.style.removeProperty('display');
+                else a.style.display = 'none';
             });
         }
 

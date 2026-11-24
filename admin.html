@@ -9751,7 +9751,7 @@
                 var restoreTries = 0;
                 (function restore() {
                     if (!window.currentUserRole && ++restoreTries < 100) { setTimeout(restore, 200); return; }
-                    if (typeof switchTab === 'function' && document.getElementById(activeSection) && window.ADMIN_NAV.canAccess(window.currentUserRole || 'manager', activeSection)) {
+                    if (typeof switchTab === 'function' && document.getElementById(activeSection) && window.ADMIN_NAV.canAccess(window.currentUserBaseRole || window.currentUserRole || 'manager', activeSection)) {
                         switchTab(activeSection);
                     }
                 })();
@@ -9828,11 +9828,24 @@
             var nav = window.ADMIN_NAV;
             var perms = window.currentUserPermissions;
             if (!nav || !perms) return;
-            // Administrators always have full access — skip nav/section/card gating entirely.
-            // The data-requires-perm button sweep below is still run but is a no-op for admin
-            // because window.can() always returns true for the administrator role.
-            if (window.currentUserRole === 'administrator') return;
+            // Clear any previous permission-based hiding BEFORE the admin check.
+            // Handles in-place re-login or cached DOM where a prior session's gating persists.
             var list = document.querySelector('.admin-sidebar');
+            if (list) {
+                [].forEach.call(list.querySelectorAll('[data-perm-hidden]'), function(el) {
+                    el.style.removeProperty('display');
+                    el.removeAttribute('data-perm-hidden');
+                });
+            }
+            [].forEach.call(document.querySelectorAll('[data-perm-hidden-action]'), function(el) {
+                el.style.removeProperty('display');
+                el.removeAttribute('data-perm-hidden-action');
+            });
+            [].forEach.call(document.querySelectorAll('[id^="dashStat-"]'), function(el) {
+                var card = el.closest('.db-stat-card');
+                if (card) card.style.removeProperty('display');
+            });
+            if (window.currentUserRole === 'administrator') return;
             if (list) {
                 [].forEach.call(list.querySelectorAll('a.tm-nav-link'), function(a) {
                     var id = (a.getAttribute('href') || '').replace('#', '');
