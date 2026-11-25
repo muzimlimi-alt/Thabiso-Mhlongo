@@ -3965,23 +3965,24 @@ $(document).ready(function() {
         // Undo the last payment choice before anything is measured: a method the client didn't pick is
         // hidden by that class, and must still count as a method that applies.
         $('#paymentSection, #ozowSection, #eftSection').removeClass('trk-tab-off');
-        // Hide-online-pay toggles: when admin has turned them on, the respective option disappears.
-        if (planState.payfastDisabled) {
+        var view = planState.view || {};
+        var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
+        // Hide-online-pay toggles: when admin has disabled a gateway, or no payment is owed
+        // (completed / fully-paid bookings), the respective option disappears entirely.
+        if (planState.payfastDisabled || !payDue) {
             $('#trkPayOptPayfast').hide();
             $('#paymentSection').hide();
         } else {
             $('#trkPayOptPayfast').show();
             $('#paymentSection').show();
         }
-        if (planState.ozowDisabled) {
+        if (planState.ozowDisabled || !payDue) {
             $('#trkPayOptOzow').hide();
             $('#ozowSection').hide();
         } else {
             $('#trkPayOptOzow').show();
             $('#ozowSection').show();
         }
-        var view = planState.view || {};
-        var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
         var step = null;
         if (trkElVisible('#contractSignSection')) step = 'sign';
         else if (trkElVisible('#acceptQuoteSection')) step = 'accept';
