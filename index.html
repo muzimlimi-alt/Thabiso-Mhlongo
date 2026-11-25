@@ -3966,7 +3966,7 @@ $(document).ready(function() {
         // hidden by that class, and must still count as a method that applies.
         $('#paymentSection, #ozowSection, #eftSection').removeClass('trk-tab-off');
         var view = planState.view || {};
-        var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
+        var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope && view.payStatus !== 'PAID';
         // Hide-online-pay toggles: when admin has disabled a gateway, or no payment is owed
         // (completed / fully-paid bookings), the respective option disappears entirely.
         if (planState.payfastDisabled || !payDue) {
